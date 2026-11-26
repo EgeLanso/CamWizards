@@ -20,6 +20,20 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const { data: upload } = await admin.from("uploads").select("*").eq("id", body.uploadId).maybeSingle();
   if (!upload || upload.user_id !== user.id) return NextResponse.json({ error: "Upload not found." }, { status: 404 });
+  if (upload.moderation_status !== "pending") {
+    return NextResponse.json({ status: upload.moderation_status, message: "This post has already been reviewed or is waiting for a moderator." });
+  }
+
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: recentReviews } = await admin.from("moderation_logs").select("id", { count: "exact", head: true })
+    .eq("user_id", user.id).eq("content_type", "upload").gte("created_at", since);
+  if ((recentReviews || 0) >= 5) return NextResponse.json({ error: "You have reached the automatic review limit. Your next post will wait for a moderator." }, { status: 429 });
+
+  // Claim the pending row before calling Groq, preventing repeat requests from burning the API quota.
+  const { data: claimed } = await admin.from("uploads").update({
+    moderation_status: "needs_review", moderation_note: "Automatic review in progress."
+  }).eq("id", upload.id).eq("moderation_status", "pending").select("id").maybeSingle();
+  if (!claimed) return NextResponse.json({ status: "needs_review", message: "This post is already being reviewed." });
 
   if (upload.media_type !== "photo") {
     await admin.from("uploads").update({ moderation_status: "needs_review", moderation_note: "Video posts require a moderator to review the video itself." }).eq("id", upload.id);
