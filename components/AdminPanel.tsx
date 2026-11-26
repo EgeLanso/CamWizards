@@ -5,11 +5,13 @@ type Member = { id:string; username:string; display_name:string|null; email:stri
 type Upload = { id:string; user_id:string; username:string; title:string; media_type:string; camera_name:string; lens_name:string|null; moderation_status:string; moderation_note:string|null; gear_check_note:string|null };
 type Chat = { id:string; user_id:string; username:string; body:string; created_at:string };
 type Report = { id:string; reporter_id:string; target_user_id:string|null; upload_id:string|null; chat_message_id:string|null; reason:string; status:string };
+type Log = {id:string;user_id:string|null;content_type:string;content_id:string|null;decision:string;reason:string|null;model:string|null;created_at:string};
 
-export default function AdminPanel({role,members,uploads,chat,reports,profileNames}:{role:string;members:Member[];uploads:Upload[];chat:Chat[];reports:Report[];profileNames:Record<string,string>}) {
+export default function AdminPanel({role,members,uploads,chat,reports,logs,profileNames}:{role:string;members:Member[];uploads:Upload[];chat:Chat[];reports:Report[];logs:Log[];profileNames:Record<string,string>}) {
   const [busy,setBusy]=useState("");
   const [notice,setNotice]=useState("");
   const [reason,setReason]=useState("Community rules violation");
+  const [memberSearch,setMemberSearch]=useState("");
   const owner=role==="owner";
   const admin=owner||role==="admin";
 
@@ -38,8 +40,9 @@ export default function AdminPanel({role,members,uploads,chat,reports,profileNam
     </div>
 
     <div className="section-head"><div><h2>Members</h2><p className="muted">Latest 100 registered accounts · XP and staff roles</p></div></div>
+    <input className="input" value={memberSearch} onChange={e=>setMemberSearch(e.target.value)} placeholder="Search username, display name or email..." style={{marginBottom:12}}/>
     <div className="grid" style={{gap:10}}>
-      {members.map(member=><div className="panel" key={member.id} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:16,alignItems:"center"}}>
+      {members.filter(member=>(member.username+" "+(member.display_name||"")+" "+member.email).toLowerCase().includes(memberSearch.toLowerCase())).map(member=><div className="panel" key={member.id} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:16,alignItems:"center"}}>
         <div><strong>{member.display_name||member.username}</strong> <span className="pill">{member.role}</span> {member.banned&&<span className="pill" style={{color:"var(--danger)"}}>SUSPENDED</span>}<p className="muted" style={{fontSize:12,margin:"5px 0"}}>@{member.username} · {member.email} · {member.xp} XP</p><small className="muted">{member.id}</small></div>
         <div style={{display:"flex",gap:7,flexWrap:"wrap",justifyContent:"end"}}>
           {owner&&member.role!=="owner"&&<select aria-label="Change member role" defaultValue={member.role} disabled={!!busy} onChange={e=>act({action:"set-role",targetId:member.id,role:e.target.value},"role-"+member.id)}><option value="member">Member</option><option value="moderator">Moderator</option><option value="admin">Admin</option></select>}
@@ -62,5 +65,13 @@ export default function AdminPanel({role,members,uploads,chat,reports,profileNam
     <div className="section-head" style={{marginTop:42}}><div><h2>Reports</h2><p className="muted">Community reports submitted by members.</p></div></div>
     <div className="grid" style={{gap:10}}>{reports.map(report=><div className="panel" key={report.id}><p>{report.reason}</p><p className="muted" style={{fontSize:11}}>Reporter: {profileNames[report.reporter_id]||report.reporter_id} · Target: {report.target_user_id?profileNames[report.target_user_id]||report.target_user_id:report.upload_id||report.chat_message_id}</p><div style={{display:"flex",gap:8}}><button className="btn" disabled={!!busy} onClick={()=>act({action:"report-status",reportId:report.id,status:"reviewing"},"reporting-"+report.id)}>Reviewing</button><button className="btn primary" disabled={!!busy} onClick={()=>act({action:"report-status",reportId:report.id,status:"resolved"},"resolve-"+report.id)}>Resolve</button><button className="btn" disabled={!!busy} onClick={()=>act({action:"report-status",reportId:report.id,status:"dismissed"},"dismiss-"+report.id)}>Dismiss</button></div></div>)}</div>
     {!reports.length&&<div className="empty">No open reports.</div>}
+
+    <div className="section-head" style={{marginTop:42}}><div><h2>Moderation history</h2><p className="muted">Recent AI decisions and moderator actions.</p></div></div>
+    <div className="grid" style={{gap:8}}>{logs.map(log=><div className="panel" key={log.id} style={{padding:13}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:12}}><strong>{log.content_type} · {log.decision}</strong><span className="muted" style={{fontSize:11}}>{new Date(log.created_at).toLocaleString()}</span></div>
+      <p className="muted" style={{fontSize:12,margin:"5px 0"}}>{log.reason||"No reason provided"} {log.model&&"· "+log.model}</p>
+      {log.content_id&&<small className="muted">{log.content_id}</small>}
+    </div>)}</div>
+    {!logs.length&&<div className="empty">No moderation history yet.</div>}
   </div></section>;
 }
