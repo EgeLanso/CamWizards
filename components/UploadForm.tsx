@@ -152,7 +152,21 @@ export function UploadForm() {
       return;
     }
 
-    setMessage("Upload published successfully.");
+    setProgress("Checking the post with CamWizards AI...");
+    let moderationMessage = "Your post was saved and is waiting for a moderator.";
+    try {
+      const response = await fetch("/api/moderation/review-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadId: created.id })
+      });
+      const result = await response.json();
+      moderationMessage = result.message || moderationMessage;
+    } catch {
+      moderationMessage = "Upload saved. Automatic review could not connect, so it remains private in the moderation queue.";
+    }
+
+    setMessage(moderationMessage);
     setProgress("");
     formElement.reset();
     setFiles([]);
