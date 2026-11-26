@@ -33,7 +33,11 @@ export default async function AdminPage() {
     banned: bans.some(ban => ban.user_id === profile.id && (!ban.expires_at || new Date(ban.expires_at) > new Date()))
   }));
   const profileNames = new Map(profiles.map(profile => [profile.id, profile.username || profile.display_name || "Member"]));
-  const uploads = (uploadsResult.data || []).map(row => ({ ...row, username: profileNames.get(row.user_id) || "Member" }));
+  const uploads = (uploadsResult.data || []).map(row => ({
+    ...row,
+    username: profileNames.get(row.user_id) || "Member",
+    publicUrl: db.storage.from(row.media_type === "video" ? "videos" : "photos").getPublicUrl(row.storage_path).data.publicUrl
+  }));
   const chat = (chatResult.data || []).map(row => ({ ...row, username: profileNames.get(row.user_id) || "Member" }));
 
   return <AdminPanel
