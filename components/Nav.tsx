@@ -6,11 +6,13 @@ const OWNER_EMAIL = process.env.OWNER_EMAIL?.toLowerCase();
 export async function Nav() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("avatar_url,display_name").eq("id", user.id).maybeSingle()
-    : { data: null };
+  const [{ data: profile }, { data: roleRow }] = user ? await Promise.all([
+    supabase.from("profiles").select("avatar_url,display_name").eq("id", user.id).maybeSingle(),
+    supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle()
+  ]) : [{ data: null }, { data: null }];
   const avatar = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
   const isOwner = Boolean(OWNER_EMAIL && user?.email?.toLowerCase() === OWNER_EMAIL);
+  const isStaff = isOwner || Boolean(roleRow?.role);
 
   return (
     <nav className="site-nav" aria-label="Main navigation">
@@ -21,9 +23,12 @@ export async function Nav() {
           <Link href="/cameras">Cameras</Link>
           <Link href="/lenses">Lenses</Link>
           <Link href="/recommend">Camera finder</Link>
+          <Link href="/lounge">Lounge</Link>
+          <Link href="/leaderboard">Ranks</Link>
         </div>
         <div className="nav-actions">
           {user ? <>
+            {isStaff && <Link href="/admin" className="btn ghost">Admin</Link>}
             <Link href="/profile" className="nav-profile" aria-label="Your profile">
               {avatar ? <img className="nav-avatar" src={avatar} alt="" /> : <span className="nav-avatar" />}
               <span style={{fontSize:12,fontWeight:800}}>{isOwner ? "OWNER" : profile?.display_name || "Profile"}</span>
