@@ -47,6 +47,15 @@ create table if not exists public.uploads (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.upload_media (
+  id uuid primary key default gen_random_uuid(),
+  upload_id uuid not null references public.uploads(id) on delete cascade,
+  storage_path text not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (upload_id, storage_path)
+);
+
 create table if not exists public.upload_categories (
   upload_id uuid not null references public.uploads(id) on delete cascade,
   category text not null check (category in ('Street','Wildlife','Animals','Architecture','Landscape','Astrophotography','Portrait','Cars','Night','Other')),
@@ -72,6 +81,10 @@ alter table public.cameras enable row level security;
 alter table public.lenses enable row level security;
 alter table public.uploads enable row level security;
 alter table public.upload_categories enable row level security;
+alter table public.upload_media enable row level security;
+
+grant select on public.upload_media to anon, authenticated;
+grant insert, delete on public.upload_media to authenticated;
 alter table public.likes enable row level security;
 
 -- Policies are dropped first so this file can be re-run safely.
@@ -113,6 +126,20 @@ drop policy if exists "categories owner delete" on public.upload_categories;
 create policy "categories public read" on public.upload_categories for select using (true);
 create policy "categories owner insert" on public.upload_categories for insert to authenticated with check (exists(select 1 from public.uploads u where u.id=upload_id and u.user_id=(select auth.uid())));
 create policy "categories owner delete" on public.upload_categories for delete to authenticated using (exists(select 1 from public.uploads u where u.id=upload_id and u.user_id=(select auth.uid())));
+
+drop policy if exists "upload media public read" on public.upload_media;
+drop policy if exists "upload media owner insert" on public.upload_media;
+drop policy if exists "upload media owner delete" on public.upload_media;
+create policy "upload media public read" on public.upload_media for select using (
+  exists (select 1 from public.uploads u where u.id=upload_id
+    and (u.expires_at is null or u.expires_at > now() or u.user_id=(select auth.uid())))
+);
+create policy "upload media owner insert" on public.upload_media for insert to authenticated with check (
+  exists (select 1 from public.uploads u where u.id=upload_id and u.user_id=(select auth.uid()))
+);
+create policy "upload media owner delete" on public.upload_media for delete to authenticated using (
+  exists (select 1 from public.uploads u where u.id=upload_id and u.user_id=(select auth.uid()))
+);
 
 drop policy if exists "likes public read" on public.likes;
 drop policy if exists "likes self insert" on public.likes;
