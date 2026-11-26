@@ -115,6 +115,45 @@ create policy "uploads public read active" on public.uploads for select using (
   or (select auth.uid()) = user_id
 );
 
+
+
+-- Restrict category and gallery metadata to approved posts (or their owner).
+drop policy if exists "categories public read" on public.upload_categories;
+create policy "categories public read" on public.upload_categories for select using (
+  exists (select 1 from public.uploads u where u.id = upload_id
+    and (((u.expires_at is null or u.expires_at > now()) and u.moderation_status = 'approved')
+      or u.user_id = (select auth.uid())))
+);
+
+drop policy if exists "upload media public read" on public.upload_media;
+create policy "upload media public read" on public.upload_media for select using (
+  exists (select 1 from public.uploads u where u.id = upload_id
+    and (((u.expires_at is null or u.expires_at > now()) and u.moderation_status = 'approved')
+      or u.user_id = (select auth.uid())))
+);
+
+-- Suspended users cannot create new posts or upload new storage objects directly.
+drop policy if exists "uploads owner insert" on public.uploads;
+create policy "uploads owner insert" on public.uploads for insert to authenticated with check (
+  (select auth.uid()) = user_id
+  and not exists (select 1 from public.user_bans b where b.user_id = (select auth.uid())
+    and b.revoked_at is null and (b.expires_at is null or b.expires_at > now()))
+);
+
+drop policy if exists "photo owner insert" on storage.objects;
+create policy "photo owner insert" on storage.objects for insert to authenticated with check (
+  bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text
+  and not exists (select 1 from public.user_bans b where b.user_id = (select auth.uid())
+    and b.revoked_at is null and (b.expires_at is null or b.expires_at > now()))
+);
+
+drop policy if exists "video owner insert" on storage.objects;
+create policy "video owner insert" on storage.objects for insert to authenticated with check (
+  bucket_id = 'videos' and (storage.foldername(name))[1] = (select auth.uid())::text
+  and not exists (select 1 from public.user_bans b where b.user_id = (select auth.uid())
+    and b.revoked_at is null and (b.expires_at is null or b.expires_at > now()))
+);
+
 -- Prevent users from awarding themselves XP or bypassing moderation through direct Supabase calls.
 create or replace function public.guard_community_fields()
 returns trigger language plpgsql security definer set search_path = public as $$
