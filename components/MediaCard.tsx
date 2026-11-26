@@ -5,9 +5,9 @@ export function MediaCard({ item, publicUrl, creator }: { item: Upload; publicUr
   return (
     <Link href={`/media/${item.id}`} className="card">
       {item.media_type === "video" ? (
-        <video className="media" src={publicUrl} muted preload="metadata" />
+        <video className="media" src={publicUrl} muted playsInline preload="none" aria-label={item.title} />
       ) : (
-        <img className="media" src={publicUrl} alt={item.title} loading="lazy" />
+        <img className="media" src={publicUrl} alt={item.title} loading="lazy" decoding="async" />
       )}
       <div className="card-body">
         <h3>{item.title}</h3>
