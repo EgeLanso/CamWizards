@@ -26,6 +26,10 @@ export async function POST(request: Request) {
       const { error } = await admin.from("user_roles").upsert({ user_id: targetId, role, granted_by: staff.user.id });
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
+    await admin.from("moderation_logs").insert({
+      user_id: staff.user.id, content_type: "role", content_id: targetId,
+      decision: role ? "role_assigned" : "role_removed", reason: role || "member"
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -49,6 +53,7 @@ export async function POST(request: Request) {
       created_by: staff.user.id
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await admin.from("moderation_logs").insert({ user_id: staff.user.id, content_type: "account", content_id: targetId, decision: "banned", reason: String(input.reason || "Community rules violation").slice(0, 500) });
     return NextResponse.json({ ok: true });
   }
 
@@ -57,6 +62,7 @@ export async function POST(request: Request) {
     const { error } = await admin.from("user_bans").update({ revoked_at: new Date().toISOString() })
       .eq("user_id", targetId).is("revoked_at", null);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await admin.from("moderation_logs").insert({ user_id: staff.user.id, content_type: "account", content_id: targetId, decision: "unbanned", reason: "Suspension lifted by staff." });
     return NextResponse.json({ ok: true });
   }
 
@@ -85,6 +91,7 @@ export async function POST(request: Request) {
     if (!input.messageId) return NextResponse.json({ error: "Missing message ID." }, { status: 400 });
     const { error } = await admin.from("chat_messages").update({ status: "removed" }).eq("id", String(input.messageId));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await admin.from("moderation_logs").insert({ user_id: staff.user.id, content_type: "chat", content_id: String(input.messageId), decision: "removed_by_staff", reason: "Manual chat moderation." });
     return NextResponse.json({ ok: true });
   }
 
@@ -94,6 +101,7 @@ export async function POST(request: Request) {
     }
     const { error } = await admin.from("user_reports").update({ status: String(input.status) }).eq("id", String(input.reportId));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await admin.from("moderation_logs").insert({ user_id: staff.user.id, content_type: "report", content_id: String(input.reportId), decision: String(input.status), reason: "Report status updated by staff." });
     return NextResponse.json({ ok: true });
   }
 
@@ -106,6 +114,7 @@ export async function POST(request: Request) {
       p_source_type: "admin", p_source_id: crypto.randomUUID()
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await admin.from("moderation_logs").insert({ user_id: staff.user.id, content_type: "xp", content_id: targetId, decision: "xp_granted", reason: `+${amount} XP: ${String(input.reason || "Admin XP adjustment").slice(0, 160)}` });
     return NextResponse.json({ ok: true });
   }
 
