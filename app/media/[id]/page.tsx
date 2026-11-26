@@ -30,7 +30,7 @@ export default async function MediaPage({params}:{params:Promise<{id:string}>}) 
     <div>
       {item.media_type==="video"
         ? <video className="detail-media" src={publicUrl} controls/>
-        : <PhotoGallery uploadId={item.id} images={gallery} initialThumbnail={item.storage_path}/>}
+        : <PhotoGallery uploadId={item.id} images={gallery} initialThumbnail={item.storage_path} canEdit={owner}/>}
     </div>
     <div className="panel">
       <div className="eyebrow">{item.media_type}</div>
