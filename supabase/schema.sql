@@ -82,6 +82,9 @@ alter table public.lenses enable row level security;
 alter table public.uploads enable row level security;
 alter table public.upload_categories enable row level security;
 alter table public.upload_media enable row level security;
+
+grant select on public.upload_media to anon, authenticated;
+grant insert, delete on public.upload_media to authenticated;
 alter table public.likes enable row level security;
 
 -- Policies are dropped first so this file can be re-run safely.
