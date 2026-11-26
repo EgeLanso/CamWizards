@@ -15,6 +15,9 @@ create index if not exists upload_media_upload_order_idx
 
 alter table public.upload_media enable row level security;
 
+grant select on public.upload_media to anon, authenticated;
+grant insert, delete on public.upload_media to authenticated;
+
 drop policy if exists "upload media public read" on public.upload_media;
 drop policy if exists "upload media owner insert" on public.upload_media;
 drop policy if exists "upload media owner delete" on public.upload_media;
