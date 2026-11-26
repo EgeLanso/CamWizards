@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   description:
     "Discover real-world camera and lens examples shared by photographers. Explore sample photos, compare gear, and find camera setups by budget and photography style.",
   applicationName: "CamWizards",
+  verification: {
+    google: "f5IG2MRR5ntszdOdGhLMKkxdW0RTwDsi0QkAd4lz1es",
+  },
   openGraph: {
     type: "website",
     url: siteUrl,
