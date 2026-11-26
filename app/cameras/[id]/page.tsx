@@ -7,7 +7,7 @@ export default async function Camera({ params }: { params: Promise<{ id: string 
   const s = await createClient();
   const { data: camera } = await s.from("cameras").select("id,name,brand,is_camcorder").eq("id", id).maybeSingle();
   if (!camera) notFound();
-  const { data: items } = await s.from("uploads").select("*").eq("camera_id", id)
+  const { data: items } = await s.from("uploads").select("id,media_type,storage_path,title,camera_name,lens_name").eq("camera_id", id)
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .order("created_at", { ascending: false }).limit(48);
   const cards = (items || []).map(item => {
