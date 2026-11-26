@@ -5,6 +5,7 @@ alter table public.profiles add column if not exists xp integer not null default
 alter table public.uploads add column if not exists moderation_status text not null default 'approved';
 alter table public.uploads add column if not exists originality_status text not null default 'unverified';
 alter table public.uploads add column if not exists moderation_note text;
+alter table public.uploads add column if not exists gear_check_note text;
 alter table public.upload_media add column if not exists content_hash text;
 create index if not exists upload_media_content_hash_idx on public.upload_media(content_hash) where content_hash is not null;
 alter table public.uploads drop constraint if exists uploads_moderation_status_check;
