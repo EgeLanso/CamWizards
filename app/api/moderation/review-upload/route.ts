@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { moderateUpload, GROQ_MODEL } from "@/lib/moderation/groq";
+import { getActiveBan } from "@/lib/community/access";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -10,6 +11,7 @@ export async function POST(request: Request) {
   const session = await createClient();
   const { data: { user } } = await session.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  if (await getActiveBan(user.id)) return NextResponse.json({ error: "Suspended accounts cannot publish." }, { status: 403 });
 
   let body: { uploadId?: string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
