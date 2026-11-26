@@ -46,7 +46,13 @@ export default function AdminPanel({role,members,uploads,chat,reports,logs,profi
         <div><strong>{member.display_name||member.username}</strong> <span className="pill">{member.role}</span> {member.banned&&<span className="pill" style={{color:"var(--danger)"}}>SUSPENDED</span>}<p className="muted" style={{fontSize:12,margin:"5px 0"}}>@{member.username} · {member.email} · {member.xp} XP</p><small className="muted">{member.id}</small></div>
         <div style={{display:"flex",gap:7,flexWrap:"wrap",justifyContent:"end"}}>
           {owner&&member.role!=="owner"&&<select aria-label="Change member role" defaultValue={member.role} disabled={!!busy} onChange={e=>act({action:"set-role",targetId:member.id,role:e.target.value},"role-"+member.id)}><option value="member">Member</option><option value="moderator">Moderator</option><option value="admin">Admin</option></select>}
-          {admin&&member.role!=="owner"&&<><button className="btn" disabled={!!busy} onClick={()=>act({action:"grant-xp",targetId:member.id,amount:10,reason:"Community contribution"},"xp-"+member.id)}>+10 XP</button>{member.banned?<button className="btn" disabled={!!busy} onClick={()=>act({action:"unban",targetId:member.id},"unban-"+member.id)}>Unban</button>:<button className="btn danger" disabled={!!busy} onClick={()=>act({action:"ban",targetId:member.id,hours:24,reason},"ban-"+member.id)}>Ban 24h</button>{owner&&<button className="btn danger" disabled={!!busy} onClick={()=>act({action:"ban",targetId:member.id,hours:0,reason},"permanent-ban-"+member.id)}>Permanent ban</button> }}</>}
+          {admin && member.role !== "owner" && <>
+            <button className="btn" disabled={!!busy} onClick={()=>act({action:"grant-xp",targetId:member.id,amount:10,reason:"Community contribution"},"xp-"+member.id)}>+10 XP</button>
+            {member.banned
+              ? <button className="btn" disabled={!!busy} onClick={()=>act({action:"unban",targetId:member.id},"unban-"+member.id)}>Unban</button>
+              : <button className="btn danger" disabled={!!busy} onClick={()=>act({action:"ban",targetId:member.id,hours:24,reason},"ban-"+member.id)}>Ban 24h</button>}
+            {owner && <button className="btn danger" disabled={!!busy} onClick={()=>act({action:"ban",targetId:member.id,hours:0,reason},"permanent-ban-"+member.id)}>Permanent ban</button>}
+          </>}
         </div>
       </div>)}
       {!members.length&&<div className="empty">No members found.</div>}
