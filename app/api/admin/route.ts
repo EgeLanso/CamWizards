@@ -37,8 +37,11 @@ export async function POST(request: Request) {
     if (process.env.OWNER_EMAIL && target.user.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase()) {
       return NextResponse.json({ error: "The owner account cannot be suspended here." }, { status: 403 });
     }
-    const hours = Math.max(0, Math.min(8760, Number(input.hours) || 0));
-    const expiresAt = hours ? new Date(Date.now() + hours * 3600000).toISOString() : null;
+    const { data: targetRole } = await admin.from("user_roles").select("role").eq("user_id", targetId).maybeSingle();
+    if (!staff.isOwner && targetRole?.role) return NextResponse.json({ error: "Only the owner can suspend another staff member." }, { status: 403 });
+    const rawHours = Number(input.hours);
+    const hours = Number.isFinite(rawHours) ? Math.max(0, Math.min(8760, rawHours)) : 24;
+    const expiresAt = hours > 0 ? new Date(Date.now() + hours * 3600000).toISOString() : null;
     const { error } = await admin.from("user_bans").insert({
       user_id: targetId,
       reason: String(input.reason || "Community rules violation").slice(0, 500),
