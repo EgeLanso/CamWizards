@@ -15,7 +15,7 @@ export default async function AdminPage() {
     db.from("profiles").select("id,username,display_name,avatar_url,xp,created_at").order("created_at", { ascending: false }).limit(100),
     db.from("user_roles").select("user_id,role"),
     db.from("user_bans").select("id,user_id,reason,expires_at,created_at").is("revoked_at", null).order("created_at", { ascending: false }).limit(100),
-    db.from("uploads").select("id,user_id,title,media_type,storage_path,camera_name,lens_name,created_at,moderation_status,moderation_note").in("moderation_status", ["pending","needs_review"]).order("created_at", { ascending: false }).limit(50),
+    db.from("uploads").select("id,user_id,title,media_type,storage_path,camera_name,lens_name,created_at,moderation_status,moderation_note,gear_check_note").in("moderation_status", ["pending","needs_review"]).order("created_at", { ascending: false }).limit(50),
     db.from("user_reports").select("id,reporter_id,target_user_id,upload_id,chat_message_id,reason,status,created_at").eq("status", "open").order("created_at", { ascending: false }).limit(50),
     db.from("chat_messages").select("id,user_id,body,status,created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(50),
     db.auth.admin.listUsers({ page: 1, perPage: 100 })
