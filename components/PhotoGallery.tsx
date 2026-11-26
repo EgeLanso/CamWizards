@@ -23,6 +23,7 @@ export default function PhotoGallery({
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if (images.length < 2) return;
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
@@ -48,9 +49,8 @@ export default function PhotoGallery({
     setMessage("");
     const supabase = createClient();
     const { error } = await supabase.from("uploads").update({ storage_path: active.path }).eq("id", uploadId);
-    if (error) {
-      setMessage(error.message);
-    } else {
+    if (error) setMessage(error.message);
+    else {
       setThumbnailPath(active.path);
       setMessage("Cover photo updated.");
     }
@@ -60,12 +60,9 @@ export default function PhotoGallery({
   return (
     <div>
       <div style={{position:"relative"}}>
-        <img
-          className="detail-media"
-          src={active.url}
-          alt={`Photo ${activeIndex + 1}`}
-          style={{display:"block",width:"100%",maxHeight:680,objectFit:"contain",background:"#080808"}}
-        />
+        <img className="detail-media" src={active.url} alt={`Photo ${activeIndex + 1}`}
+          decoding="async" fetchPriority="high"
+          style={{display:"block",width:"100%",maxHeight:680,objectFit:"contain",background:"#080808"}} />
         {images.length > 1 && <>
           <button type="button" aria-label="Previous photo" onClick={() => setActiveIndex(index => (index - 1 + images.length) % images.length)} style={arrowStyle("left")}>‹</button>
           <button type="button" aria-label="Next photo" onClick={() => setActiveIndex(index => (index + 1) % images.length)} style={arrowStyle("right")}>›</button>
@@ -74,15 +71,10 @@ export default function PhotoGallery({
       </div>
       {images.length > 1 && <div style={{display:"flex",gap:8,overflowX:"auto",padding:"12px 2px"}}>
         {images.map((image,index) => (
-          <button
-            type="button"
-            key={image.path}
-            onClick={() => setActiveIndex(index)}
-            aria-label={`Show photo ${index + 1}`}
-            aria-pressed={index === activeIndex}
-            style={{position:"relative",flex:"0 0 82px",height:64,padding:0,border:index === activeIndex ? "2px solid var(--accent)" : "2px solid transparent",borderRadius:8,overflow:"hidden",background:"#111",cursor:"pointer"}}
-          >
-            <img src={image.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} />
+          <button type="button" key={image.path} onClick={() => setActiveIndex(index)}
+            aria-label={`Show photo ${index + 1}`} aria-pressed={index === activeIndex}
+            style={{position:"relative",flex:"0 0 82px",height:64,padding:0,border:index === activeIndex ? "2px solid var(--accent)" : "2px solid transparent",borderRadius:8,overflow:"hidden",background:"#111",cursor:"pointer"}}>
+            <img src={image.url} alt="" loading="lazy" decoding="async" style={{width:"100%",height:"100%",objectFit:"cover"}} />
             {image.path === thumbnailPath && <span style={{position:"absolute",left:3,bottom:3,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.75)",padding:"2px 4px",borderRadius:4}}>COVER</span>}
           </button>
         ))}
@@ -91,7 +83,7 @@ export default function PhotoGallery({
         {canEdit && <button type="button" className="btn" onClick={setAsThumbnail} disabled={isThumbnail || saving}>
           {saving ? "Saving..." : isThumbnail ? "Current cover photo" : "Set as cover photo"}
         </button>}
-        <span className="muted" style={{fontSize:12}}>Use ← and → keys to browse photos.</span>
+        {images.length > 1 && <span className="muted" style={{fontSize:12}}>Use ← and → keys to browse.</span>}
       </div>
       {message && <p className={message.includes("updated") ? "success" : "error"}>{message}</p>}
     </div>
