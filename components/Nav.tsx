@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
-const OWNER_EMAIL = "tezcanaric14@gmail.com";
+const OWNER_EMAIL = process.env.OWNER_EMAIL?.toLowerCase();
 
 export async function Nav() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: profile } = user ? await supabase.from("profiles").select("avatar_url,display_name").eq("id", user.id).single() : { data: null };
   const avatar = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
-  const isOwner = user?.email?.toLowerCase() === OWNER_EMAIL;
+  const isOwner = Boolean(OWNER_EMAIL && user?.email?.toLowerCase() === OWNER_EMAIL);
   return (
     <nav className="site-nav">
       <div className="container nav-inner">
