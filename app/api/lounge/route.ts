@@ -47,6 +47,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "visible", id: row.id });
   }
 
+  if (result.decision === "hold") {
+    await admin.from("chat_messages").update({ status: "pending" }).eq("id", row.id);
+    await admin.from("moderation_logs").insert({ user_id: user.id, content_type: "chat", content_id: row.id, decision: "needs_review", categories: result.categories, reason: result.reason, model: GROQ_MODEL });
+    return NextResponse.json({ status: "pending", message: "Message held for moderator review." });
+  }
+
   await admin.from("chat_messages").update({ status: "removed" }).eq("id", row.id);
   if (result.decision === "ban" && result.confidence >= 0.9) {
     await admin.from("user_bans").insert({
@@ -59,7 +65,7 @@ export async function POST(request: Request) {
     decision: result.decision, categories: result.categories, reason: result.reason, model: GROQ_MODEL
   });
   return NextResponse.json({
-    status: result.decision === "hold" ? "pending" : "removed",
+    status: "removed",
     message: result.decision === "ban" && result.confidence >= 0.9
       ? "A serious community-rule violation was detected. Your account is temporarily suspended for 24 hours."
       : result.decision === "hold" ? "Message held for moderator review." : "Message was not published because it violated the community rules."
