@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { moderateUpload, GROQ_MODEL } from "@/lib/moderation/groq";
+import { moderateUpload, searchGearPrice, GROQ_MODEL } from "@/lib/moderation/groq";
 import { getActiveBan } from "@/lib/community/access";
 
 export const runtime = "nodejs";
@@ -77,10 +77,25 @@ export async function POST(request: Request) {
 
   const approved = result.decision === "approve" && result.confidence >= 0.65;
   const status = approved ? "approved" : result.decision === "reject" || result.decision === "ban" ? "rejected" : "needs_review";
+  let gearCheckNote: string | null = null;
+  if (upload.camera_price !== null && Number(upload.camera_price) > 0) {
+    try {
+      gearCheckNote = await searchGearPrice({
+        camera: upload.camera_name,
+        lens: upload.lens_name,
+        price: Number(upload.camera_price),
+        currency: upload.currency,
+        condition: upload.condition
+      });
+    } catch (error) {
+      gearCheckNote = error instanceof Error ? error.message : "Gear price search unavailable.";
+    }
+  }
   const { error } = await admin.from("uploads").update({
     moderation_status: status,
     originality_status: result.originality,
-    moderation_note: result.reason
+    moderation_note: result.reason,
+    gear_check_note: gearCheckNote
   }).eq("id", upload.id);
   if (error) return NextResponse.json({ error: "Could not save moderation result." }, { status: 500 });
 
