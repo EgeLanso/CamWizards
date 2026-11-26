@@ -7,7 +7,7 @@ export default async function Lens({ params }: { params: Promise<{ id: string }>
   const s = await createClient();
   const { data: lens } = await s.from("lenses").select("id,name,brand").eq("id", id).maybeSingle();
   if (!lens) notFound();
-  const { data: items } = await s.from("uploads").select("*").eq("lens_id", id)
+  const { data: items } = await s.from("uploads").select("id,media_type,storage_path,title,camera_name,lens_name").eq("lens_id", id)
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .order("created_at", { ascending: false }).limit(48);
   const cards = (items || []).map(item => {
