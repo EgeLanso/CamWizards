@@ -1,0 +1,13 @@
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+
+type Cam={id:string,name:string,brand:string|null,is_camcorder:boolean};
+
+export default function Recommend(){
+  const [budget,setBudget]=useState("1000"); const [type,setType]=useState("any"); const [level,setLevel]=useState("beginner"); const [condition,setCondition]=useState("any"); const [cams,setCams]=useState<Cam[]>([]);
+  useEffect(()=>{createClient().from("cameras").select("*").order("name").then(({data})=>setCams(data||[]))},[]);
+  const scored=cams.map(c=>{let score=0;if(type==="video"&&c.is_camcorder)score+=4;if(type==="photo"&&!c.is_camcorder)score+=3;if(condition!=="any")score+=1;if(level==="beginner")score+=1;return {...c,score}}).sort((a,b)=>b.score-a.score).slice(0,8);
+  return <section className="form-page"><div className="container"><div className="form-shell"><div className="eyebrow">Gear finder</div><h2>What camera do you need?</h2><p className="lead" style={{fontSize:15}}>Recommendations use the cameras already present in the CamWizards database. As more photographers upload, the matching gets better.</p><div className="form-grid"><div><label className="label">Budget</label><input className="input" type="number" value={budget} onChange={e=>setBudget(e.target.value)}/></div><div><label className="label">Main use</label><select value={type} onChange={e=>setType(e.target.value)}><option value="any">Anything</option><option value="photo">Photography</option><option value="video">Video</option></select></div><div><label className="label">Experience</label><select value={level} onChange={e=>setLevel(e.target.value)}><option>beginner</option><option>intermediate</option><option>advanced</option></select></div><div><label className="label">Condition</label><select value={condition} onChange={e=>setCondition(e.target.value)}><option value="any">New or used</option><option value="new">New</option><option value="used">Used</option></select></div></div><div className="section"><h3>Matches</h3><p className="muted">Budget preference: {budget || "—"} (currency depends on your comparison context).</p>{scored.length?<div className="grid grid-3">{scored.map(c=><Link href={`/cameras/${c.id}`} className="card" key={c.id}><div className="card-body"><div className="eyebrow">{c.brand||"Camera"}</div><h3>{c.name}</h3><p className="muted">{c.is_camcorder?"Camcorder":"Interchangeable-lens camera"}</p></div></Link>)}</div>:<div className="empty">No cameras are in the database yet.</div>}</div></div></div></section>
+}
