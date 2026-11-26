@@ -11,7 +11,7 @@ export default async function PublicProfile({ params }: { params: Promise<{ id: 
   const { data: p } = await s.from("profiles").select("username,display_name,avatar_url").eq("id", id).maybeSingle();
   if (!p) notFound();
 
-  const { data: items } = await s.from("uploads").select("*")
+  const { data: items } = await s.from("uploads").select("id,media_type,storage_path,title,camera_name,lens_name")
     .eq("user_id", id)
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .order("created_at", { ascending: false }).limit(48);
