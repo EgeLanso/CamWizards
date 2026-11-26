@@ -8,11 +8,13 @@ type GalleryImage = { path: string; url: string };
 export default function PhotoGallery({
   uploadId,
   images,
-  initialThumbnail
+  initialThumbnail,
+  canEdit
 }: {
   uploadId: string;
   images: GalleryImage[];
   initialThumbnail: string;
+  canEdit: boolean;
 }) {
   const initialIndex = Math.max(0, images.findIndex(image => image.path === initialThumbnail));
   const [activeIndex, setActiveIndex] = useState(initialIndex);
@@ -23,7 +25,7 @@ export default function PhotoGallery({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName))) return;
+      if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
       if (event.key === "ArrowRight") {
         event.preventDefault();
         setActiveIndex(index => (index + 1) % images.length);
@@ -86,9 +88,9 @@ export default function PhotoGallery({
         ))}
       </div>}
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginTop:8}}>
-        <button type="button" className="btn" onClick={setAsThumbnail} disabled={isThumbnail || saving}>
+        {canEdit && <button type="button" className="btn" onClick={setAsThumbnail} disabled={isThumbnail || saving}>
           {saving ? "Saving..." : isThumbnail ? "Current cover photo" : "Set as cover photo"}
-        </button>
+        </button>}
         <span className="muted" style={{fontSize:12}}>Use ← and → keys to browse photos.</span>
       </div>
       {message && <p className={message.includes("updated") ? "success" : "error"}>{message}</p>}
