@@ -6,36 +6,30 @@ export default async function Explore({ searchParams }: { searchParams: Promise<
   const params = await searchParams;
   const q = params.q?.trim() || "";
   const category = (CATEGORIES as readonly string[]).includes(params.category || "") ? params.category! : "";
-  const type = params.type || "";
-  const condition = params.condition || "";
+  const type = params.type === "photo" || params.type === "video" ? params.type : "";
+  const condition = params.condition === "new" || params.condition === "used" ? params.condition : "";
   const supabase = await createClient();
 
-  let items: any[] = [];
-  let noMatch = false;
-
-  let query = supabase.from("uploads").select("*")
+  let query = supabase.from("uploads")
+    .select("id,user_id,media_type,storage_path,title,description,camera_name,lens_name,expires_at,created_at,camera_id,lens_id,camera_price,currency,purchased_from,condition")
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-    .order("created_at",{ascending:false}).limit(60);
-  if (type === "photo" || type === "video") query = query.eq("media_type", type);
-  if (condition === "new" || condition === "used") query = query.eq("condition", condition);
+    .order("created_at", { ascending: false }).limit(48);
+  if (type) query = query.eq("media_type", type);
+  if (condition) query = query.eq("condition", condition);
 
-  // Characters that have a meaning inside a PostgREST filter string are removed from the search text,
-  // otherwise a comma or parenthesis in the search box breaks the query.
-  const safeQ = q.replace(/[,()%*\\_:"']/g, " ").replace(/\s+/g, " ").trim();
+  const safeQ = q.replace(/[,()%*\\_:"']/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
   if (safeQ) query = query.or(`camera_name.ilike.%${safeQ}%,lens_name.ilike.%${safeQ}%,title.ilike.%${safeQ}%,description.ilike.%${safeQ}%`);
 
-  // Category is applied in the database query, so the 60-item limit counts only matching uploads.
+  let categoryIds: string[] | null = null;
   if (category) {
-    const { data: links } = await supabase.from("upload_categories").select("upload_id").eq("category", category);
-    const ids = (links || []).map(x => x.upload_id);
-    if (ids.length) query = query.in("id", ids); else noMatch = true;
+    const { data: links } = await supabase.from("upload_categories").select("upload_id").eq("category", category).limit(500);
+    categoryIds = (links || []).map(row => row.upload_id);
   }
 
-  if (!noMatch) {
-    const { data: raw } = await query;
-    items = raw || [];
-  }
-
+  const { data: raw } = categoryIds && categoryIds.length === 0
+    ? { data: [] }
+    : await (categoryIds ? query.in("id", categoryIds) : query);
+  const items = raw || [];
   const cards = items.map(item => {
     const bucket = item.media_type === "video" ? "videos" : "photos";
     const { data } = supabase.storage.from(bucket).getPublicUrl(item.storage_path);
@@ -43,14 +37,17 @@ export default async function Explore({ searchParams }: { searchParams: Promise<
   });
 
   return <section className="section"><div className="container">
-    <div className="eyebrow">Discovery</div><h1 style={{fontSize:"clamp(42px,6vw,70px)"}}>Explore the real-world archive.</h1>
+    <div className="eyebrow">Community archive</div>
+    <h1 style={{fontSize:"clamp(40px,6vw,68px)"}}>Explore photography.</h1>
+    <p className="lead">Find real-world examples by camera, lens, category and shooting style.</p>
     <form className="filters">
-      <input className="input" name="q" defaultValue={q} placeholder="Camera, lens, title..." />
-      <select name="category" defaultValue={category}><option value="">All categories</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
-      <select name="type" defaultValue={type}><option value="">Photo + video</option><option value="photo">Photo</option><option value="video">Video</option></select>
+      <input className="input" name="q" defaultValue={q} placeholder="Search camera, lens or title..." aria-label="Search uploads" />
+      <select name="category" defaultValue={category}><option value="">All categories</option>{CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
+      <select name="type" defaultValue={type}><option value="">Photo + video</option><option value="photo">Photos</option><option value="video">Videos</option></select>
       <select name="condition" defaultValue={condition}><option value="">Any condition</option><option value="new">New</option><option value="used">Second-hand</option></select>
-      <button className="btn primary">Filter</button>
+      <button className="btn primary">Apply filters</button>
     </form>
-    {cards.length ? <div className="grid grid-4">{cards}</div> : <div className="empty">No matching uploads yet.</div>}
+    <div className="section-head"><p className="muted">{cards.length} recent results (up to 48)</p></div>
+    {cards.length ? <div className="grid grid-4">{cards}</div> : <div className="empty">No matching uploads yet. Try another search or category.</div>}
   </div></section>;
 }
