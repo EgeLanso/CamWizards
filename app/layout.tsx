@@ -13,7 +13,6 @@ export const metadata: Metadata = {
   description:
     "Discover real-world camera and lens examples shared by photographers. Explore sample photos, compare gear, and find camera setups by budget and photography style.",
   applicationName: "CamWizards",
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     url: siteUrl,
