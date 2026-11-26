@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import ProfileEditor from "@/components/ProfileEditor";
 
-const OWNER_EMAIL = "tezcanaric14@gmail.com";
+const OWNER_EMAIL = process.env.OWNER_EMAIL?.toLowerCase();
 
 export default async function Profile() {
   const s = await createClient();
@@ -12,7 +12,7 @@ export default async function Profile() {
   const { data: p } = await s.from("profiles").select("*").eq("id", user.id).single();
   const { data: items } = await s.from("uploads").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
   const count = items?.length || 0;
-  const isOwner = user.email?.toLowerCase() === OWNER_EMAIL;
+  const isOwner = Boolean(OWNER_EMAIL && user.email?.toLowerCase() === OWNER_EMAIL);
   const avatar = p?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || "";
   const displayName = p?.display_name || user.user_metadata?.full_name || user.user_metadata?.name || "";
   return <section className="section"><div className="container">
