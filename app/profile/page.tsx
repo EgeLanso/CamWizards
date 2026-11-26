@@ -11,7 +11,7 @@ export default async function Profile() {
   if (!user) redirect("/login");
   const [{ data: p }, { data: items }] = await Promise.all([
     s.from("profiles").select("username,display_name,avatar_url").eq("id", user.id).maybeSingle(),
-    s.from("uploads").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(60)
+    s.from("uploads").select("id,media_type,storage_path,title,expires_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(60)
   ]);
   const count = items?.length || 0;
   const isOwner = Boolean(OWNER_EMAIL && user.email?.toLowerCase() === OWNER_EMAIL);
