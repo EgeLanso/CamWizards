@@ -10,8 +10,8 @@ export default async function Profile() {
   const { data: { user } } = await s.auth.getUser();
   if (!user) redirect("/login");
   const [{ data: p }, { data: items }] = await Promise.all([
-    s.from("profiles").select("username,display_name,avatar_url").eq("id", user.id).maybeSingle(),
-    s.from("uploads").select("id,media_type,storage_path,title,expires_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(60)
+    s.from("profiles").select("username,display_name,avatar_url,xp").eq("id", user.id).maybeSingle(),
+    s.from("uploads").select("id,media_type,storage_path,title,expires_at,moderation_status").eq("user_id", user.id).order("created_at", { ascending: false }).limit(60)
   ]);
   const count = items?.length || 0;
   const isOwner = Boolean(OWNER_EMAIL && user.email?.toLowerCase() === OWNER_EMAIL);
@@ -29,6 +29,7 @@ export default async function Profile() {
       </Link>
       <div className="card-body">
         <h3>{item.title}</h3>
+        {item.moderation_status !== "approved" && <span className="pill" style={{display:"inline-block",marginTop:7,color:"var(--accent)"}}>{item.moderation_status === "rejected" ? "Rejected" : "Awaiting moderation"}</span>}
         {item.expires_at && <div className="meta" style={{marginTop:7}}>Expires {new Date(item.expires_at).toLocaleDateString()}</div>}
         <div style={{display:"flex",gap:7,marginTop:12}}><Link className="btn" href={`/media/${item.id}`}>Manage</Link></div>
       </div>
@@ -41,7 +42,7 @@ export default async function Profile() {
       <div>
         <div className="eyebrow">Your account</div>
         <h2>{displayName || p?.username || "Wizard"} {isOwner && <span style={{display:"inline-block",verticalAlign:"middle",fontSize:10,letterSpacing:1,background:"linear-gradient(135deg,#ffe08a,#d99b20)",color:"#241600",padding:"6px 10px",borderRadius:999,fontWeight:900}}>★ OWNER</span>}</h2>
-        <div className="stats"><span className="stat"><strong>{count === 60 ? "60+" : count}</strong> recent uploads</span><span>{user.email}</span></div>
+        <div className="stats"><span className="stat"><strong>{p?.xp || 0}</strong> XP</span><span className="stat"><strong>{count === 60 ? "60+" : count}</strong> recent uploads</span><span>{user.email}</span></div>
       </div>
       <div style={{marginLeft:"auto"}}><form action="/api/auth/signout" method="post"><button className="btn">Log out</button></form></div>
     </div>
