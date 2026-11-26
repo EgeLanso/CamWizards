@@ -70,3 +70,33 @@ export async function moderateUpload(input: {
 }
 
 export const GROQ_MODEL = MODEL;
+
+// Optional, short market check. Runs only when a member supplied a price.
+export async function searchGearPrice(input: {
+  camera: string; lens: string | null; price: number; currency: string | null; condition: string | null;
+}) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error("GROQ_API_KEY is not configured.");
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "openai/gpt-oss-20b",
+      messages: [{
+        role: "user",
+        content: `Do a very short web search to sanity-check this user-submitted camera gear price. Camera: ${input.camera}. Lens: ${input.lens || "not specified"}. Claimed price: ${input.price} ${input.currency || ""}. Condition: ${input.condition || "unknown"}. Search only for this exact gear and currency. Use at most 3 useful sources, prefer manufacturers and reputable retailers/marketplaces, distinguish new from used, and report a rough observed range rather than a precise valuation. Output at most 4 short lines: estimated range, whether the claimed price looks unusual, and source names/URLs. If sources are weak or currencies differ, say unable to verify. This is a moderation hint, not a final verdict.`
+      }],
+      temperature: 0,
+      max_completion_tokens: 420,
+      reasoning_effort: "low",
+      tool_choice: "required",
+      tools: [{ type: "browser_search" }]
+    }),
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(`Groq gear search unavailable (${response.status}).`);
+  const payload = await response.json();
+  const result = payload.choices?.[0]?.message?.content;
+  if (typeof result !== "string" || !result.trim()) throw new Error("No gear-search result.");
+  return result.trim().slice(0, 1800);
+}
