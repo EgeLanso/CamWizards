@@ -26,9 +26,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "needs_review", message: "Video sent to the moderation queue." });
   }
 
-  const { data: media } = await admin.from("upload_media").select("storage_path").eq("upload_id", upload.id).order("sort_order", { ascending: true });
+  const { data: media } = await admin.from("upload_media").select("id,storage_path,content_hash").eq("upload_id", upload.id).order("sort_order", { ascending: true });
   const paths = Array.from(new Set([upload.storage_path, ...(media || []).map(row => row.storage_path)]));
   const urls = paths.map(path => admin.storage.from("photos").getPublicUrl(path).data.publicUrl);
+
+  // Exact SHA-256 matching catches byte-identical re-uploads. It cannot detect edited copies.
+  const fingerprintRows = (media || []).slice(0, 3);
+  const hashes: string[] = [];
+  try {
+    for (const row of fingerprintRows) {
+      const url = admin.storage.from("photos").getPublicUrl(row.storage_path).data.publicUrl;
+      const fileResponse = await fetch(url, { cache: "no-store" });
+      if (!fileResponse.ok) throw new Error("Could not inspect uploaded image bytes.");
+      const bytes = await fileResponse.arrayBuffer();
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const hash = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
+      hashes.push(hash);
+      await admin.from("upload_media").update({ content_hash: hash }).eq("id", row.id);
+    }
+    if (hashes.length) {
+      const { data: matches } = await admin.from("upload_media").select("upload_id").in("content_hash", hashes).neq("upload_id", upload.id).limit(1);
+      if (matches?.length) {
+        const note = "An identical image file already exists in another post. Moderator review is required; this is not proof of copyright infringement.";
+        await admin.from("uploads").update({ moderation_status: "needs_review", originality_status: "possible_edit", moderation_note: note }).eq("id", upload.id);
+        await admin.from("moderation_logs").insert({ user_id: user.id, content_type: "upload", content_id: upload.id, decision: "needs_review", categories: ["exact_duplicate_file"], reason: note, model: "SHA-256" });
+        return NextResponse.json({ status: "needs_review", message: "An identical file was found in the community. Your post is waiting for a moderator." });
+      }
+    }
+  } catch {
+    await admin.from("uploads").update({ moderation_status: "needs_review", moderation_note: "Could not complete the file-integrity check; manual review required." }).eq("id", upload.id);
+    return NextResponse.json({ status: "needs_review", message: "The file check could not finish. Your post is waiting for a moderator." });
+  }
   let result;
   try {
     result = await moderateUpload({
