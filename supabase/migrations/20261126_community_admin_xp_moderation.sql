@@ -1,5 +1,18 @@
 -- CamWizards community, roles, XP, moderation and chat.
--- Run once in Supabase SQL Editor. Safe to re-run.
+-- Run after the core profile/upload tables exist. Safe to re-run.
+
+create table if not exists public.upload_media (
+  id uuid primary key default gen_random_uuid(),
+  upload_id uuid not null references public.uploads(id) on delete cascade,
+  storage_path text not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (upload_id, storage_path)
+);
+create index if not exists upload_media_upload_id_sort_idx on public.upload_media(upload_id, sort_order);
+alter table public.upload_media enable row level security;
+grant select on public.upload_media to anon, authenticated;
+grant insert, delete on public.upload_media to authenticated;
 
 alter table public.profiles add column if not exists xp integer not null default 0;
 alter table public.uploads add column if not exists moderation_status text not null default 'approved';
@@ -136,6 +149,10 @@ drop policy if exists "upload media owner insert" on public.upload_media;
 create policy "upload media owner insert" on public.upload_media for insert to authenticated with check (
   exists (select 1 from public.uploads u where u.id = upload_id
     and u.user_id = (select auth.uid()) and u.moderation_status = 'pending')
+);
+drop policy if exists "upload media owner delete" on public.upload_media;
+create policy "upload media owner delete" on public.upload_media for delete to authenticated using (
+  exists (select 1 from public.uploads u where u.id = upload_id and u.user_id = (select auth.uid()))
 );
 
 -- Suspended users cannot create new posts or upload new storage objects directly.
