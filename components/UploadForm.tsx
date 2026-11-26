@@ -15,6 +15,7 @@ export function UploadForm() {
   }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
+    const formElement = e.currentTarget;
     e.preventDefault();
     if (!media) return setMessage("Choose a photo or video first.");
     if (!categories.length) return setMessage("Choose at least one category.");
@@ -23,7 +24,7 @@ export function UploadForm() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setMessage("Please log in first."); setBusy(false); return; }
 
-    const form = new FormData(e.currentTarget);
+    const form = new FormData(formElement);
     const cameraName = String(form.get("camera") || "").trim();
     const lensName = camcorder ? null : String(form.get("lens") || "").trim() || null;
     if (!cameraName) { setMessage("Camera name is required."); setBusy(false); return; }
@@ -73,7 +74,7 @@ export function UploadForm() {
     if (catError) { setMessage(catError.message); setBusy(false); return; }
 
     setMessage("Upload published successfully.");
-    (e.target as HTMLFormElement).reset();
+    formElement.reset();
     setCategories([]);
     setMedia(null);
     setBusy(false);
