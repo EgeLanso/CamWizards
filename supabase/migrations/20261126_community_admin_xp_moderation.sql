@@ -132,6 +132,12 @@ create policy "upload media public read" on public.upload_media for select using
       or u.user_id = (select auth.uid())))
 );
 
+drop policy if exists "upload media owner insert" on public.upload_media;
+create policy "upload media owner insert" on public.upload_media for insert to authenticated with check (
+  exists (select 1 from public.uploads u where u.id = upload_id
+    and u.user_id = (select auth.uid()) and u.moderation_status = 'pending')
+);
+
 -- Suspended users cannot create new posts or upload new storage objects directly.
 drop policy if exists "uploads owner insert" on public.uploads;
 create policy "uploads owner insert" on public.uploads for insert to authenticated with check (
@@ -169,6 +175,26 @@ begin
         new.originality_status := 'unverified';
         new.moderation_note := null;
       elsif tg_op = 'UPDATE' then
+        if old.moderation_status <> 'pending' and (
+          new.media_type is distinct from old.media_type or
+          new.title is distinct from old.title or
+          new.description is distinct from old.description or
+          new.camera_id is distinct from old.camera_id or
+          new.lens_id is distinct from old.lens_id or
+          new.camera_name is distinct from old.camera_name or
+          new.lens_name is distinct from old.lens_name or
+          new.camera_price is distinct from old.camera_price or
+          new.currency is distinct from old.currency or
+          new.purchased_from is distinct from old.purchased_from or
+          new.condition is distinct from old.condition
+        ) then
+          raise exception 'Reviewed post details are locked. Delete and re-upload to change them.';
+        end if;
+        if new.storage_path is distinct from old.storage_path and not exists (
+          select 1 from public.upload_media m where m.upload_id = old.id and m.storage_path = new.storage_path
+        ) then
+          raise exception 'Cover photo must belong to this post gallery.';
+        end if;
         new.moderation_status := old.moderation_status;
         new.originality_status := old.originality_status;
         new.moderation_note := old.moderation_note;
