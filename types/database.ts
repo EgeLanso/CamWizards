@@ -7,6 +7,7 @@ export type Profile = {
   display_name: string | null;
   avatar_url: string | null;
   created_at: string;
+  xp: number;
 };
 
 export type Camera = {
@@ -41,6 +42,8 @@ export type Upload = {
   condition: Condition | null;
   expires_at: string | null;
   created_at: string;
+  moderation_status?: "pending" | "approved" | "rejected" | "needs_review";
+  originality_status?: "unverified" | "likely_original" | "possible_edit" | "uncertain";
 };
 
 export const CATEGORIES = [
