@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   const approved = result.decision === "approve" && result.confidence >= 0.65;
   const status = approved ? "approved" : result.decision === "reject" || result.decision === "ban" ? "rejected" : "needs_review";
   let gearCheckNote: string | null = null;
-  if (upload.camera_price !== null && Number(upload.camera_price) > 0) {
+  if (approved && upload.camera_price !== null && Number(upload.camera_price) > 0) {
     try {
       gearCheckNote = await searchGearPrice({
         camera: upload.camera_name,
