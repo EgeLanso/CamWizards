@@ -5,9 +5,6 @@ import { Nav } from "@/components/Nav";
 export const metadata: Metadata = {
   title: "CamWizards — Real-world camera examples",
   description: "See what cameras and lenses can really do through real community photos and videos.",
-  icons: {
-    icon: "https://cdn-icons-png.flaticon.com/512/4676/4676067.png",
-  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

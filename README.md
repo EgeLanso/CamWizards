@@ -5,8 +5,7 @@ A production-oriented Next.js + Supabase community photography archive.
 ## Run locally
 
 1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the Supabase SQL editor.
-3. Create two **public** Storage buckets named `photos` and `videos`.
+2. Run `supabase/schema.sql` in the Supabase SQL editor. It is safe to re-run. It also creates the public `photos` (10 MB) and `videos` (50 MB) Storage buckets.
 4. In Supabase Authentication:
    - Enable Email/Password.
    - Enable Google OAuth and set the Google provider credentials.
@@ -26,6 +25,7 @@ Import the repository into Vercel and add:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `OWNER_EMAIL` (optional, shows the OWNER badge for that account)
 
 The app uses only the public Supabase anon key in the browser. Database and Storage access is protected by Row Level Security. Never expose a Supabase service-role key in frontend code.
 
