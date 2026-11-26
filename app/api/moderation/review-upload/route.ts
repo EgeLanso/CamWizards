@@ -117,6 +117,10 @@ export async function POST(request: Request) {
     user_id: user.id, content_type: "upload", content_id: upload.id,
     decision: status, categories: result.categories, reason: result.reason, model: GROQ_MODEL
   });
+  if (gearCheckNote) await admin.from("moderation_logs").insert({
+    user_id: user.id, content_type: "gear_price_check", content_id: upload.id,
+    decision: "checked", reason: gearCheckNote, model: "openai/gpt-oss-20b + browser_search"
+  });
   if (approved) await admin.rpc("award_xp", {
     p_user_id: user.id, p_amount: 10, p_reason: "Approved photo post",
     p_source_type: "upload", p_source_id: upload.id
