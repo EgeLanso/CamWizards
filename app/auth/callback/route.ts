@@ -6,15 +6,18 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   if (code) {
     const supabase = await createClient();
-    const { data } = await supabase.auth.exchangeCodeForSession(code);
-    if (data.user) {
-      const username = data.user.user_metadata?.username || data.user.user_metadata?.preferred_username || `wizard_${data.user.id.slice(0,8)}`;
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user) {
+      const meta = data.user.user_metadata || {};
+      const username = meta.username || meta.preferred_username || `wizard_${data.user.id.slice(0,8)}`;
+      const displayName = meta.full_name || meta.name || null;
+      const avatarUrl = meta.avatar_url || meta.picture || null;
       await supabase.from("profiles").upsert({
         id: data.user.id,
         username,
-        display_name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || null,
-        avatar_url: data.user.user_metadata?.avatar_url || null
-      });
+        display_name: displayName,
+        avatar_url: avatarUrl
+      }, { onConflict: "id" });
     }
   }
   return NextResponse.redirect(new URL("/profile", request.url));
