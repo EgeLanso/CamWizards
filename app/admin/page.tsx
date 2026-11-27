@@ -11,7 +11,7 @@ export default async function AdminPage() {
   if (!staff.admin) return <section className="section"><div className="container"><div className="empty">Admin tools need the server-only SUPABASE_SERVICE_ROLE_KEY environment variable.</div></div></section>;
 
   const db = staff.admin;
-  const [profilesResult, rolesResult, bansResult, uploadsResult, reportsResult, chatResult, logsResult, usersResult] = await Promise.all([
+  const [profilesResult, rolesResult, bansResult, uploadsResult, reportsResult, chatResult, logsResult, usersResult, ownerProfileResult] = await Promise.all([
     db.from("profiles").select("id,username,display_name,avatar_url,xp,created_at").order("created_at", { ascending: false }).limit(100),
     db.from("user_roles").select("user_id,role"),
     db.from("user_bans").select("id,user_id,reason,expires_at,created_at").is("revoked_at", null).order("created_at", { ascending: false }).limit(100),
@@ -19,12 +19,17 @@ export default async function AdminPage() {
     db.from("user_reports").select("id,reporter_id,target_user_id,upload_id,chat_message_id,reason,status,created_at").eq("status", "open").order("created_at", { ascending: false }).limit(50),
     db.from("chat_messages").select("id,user_id,body,status,created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(50),
     db.from("moderation_logs").select("id,user_id,content_type,content_id,decision,reason,model,created_at").order("created_at", { ascending: false }).limit(50),
-    db.auth.admin.listUsers({ page: 1, perPage: 100 })
+    db.auth.admin.listUsers({ page: 1, perPage: 100 }),
+    db.from("profiles").select("id,username,display_name,avatar_url,xp,created_at").eq("id", staff.user.id).maybeSingle()
   ]);
 
   const roles = new Map((rolesResult.data || []).map(row => [row.user_id, row.role]));
   const users = new Map((usersResult.data?.users || []).map(row => [row.id, row.email || ""]));
-  const profiles = profilesResult.data || [];
+  users.set(staff.user.id, staff.user.email || "");
+  const profiles = [...(profilesResult.data || [])];
+  if (ownerProfileResult.data && !profiles.some(profile => profile.id === staff.user!.id)) {
+    profiles.unshift(ownerProfileResult.data);
+  }
   const bans = bansResult.data || [];
   const members = profiles.map(profile => ({
     ...profile,
