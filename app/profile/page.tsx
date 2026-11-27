@@ -9,48 +9,44 @@ export default async function Profile() {
   const s = await createClient();
   const { data: { user } } = await s.auth.getUser();
   if (!user) redirect("/login");
-  const { data: p } = await s.from("profiles").select("*").eq("id", user.id).single();
-  const { data: items } = await s.from("uploads").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+  const [{ data: p }, { data: items }] = await Promise.all([
+    s.from("profiles").select("username,display_name,avatar_url").eq("id", user.id).maybeSingle(),
+    s.from("uploads").select("id,media_type,storage_path,title,expires_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(60)
+  ]);
   const count = items?.length || 0;
   const isOwner = Boolean(OWNER_EMAIL && user.email?.toLowerCase() === OWNER_EMAIL);
   const avatar = p?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || "";
   const displayName = p?.display_name || user.user_metadata?.full_name || user.user_metadata?.name || "";
 
-  const uploadCards = (items || []).map((item) => {
+  const uploadCards = (items || []).map(item => {
     const bucket = item.media_type === "video" ? "videos" : "photos";
     const { data } = s.storage.from(bucket).getPublicUrl(item.storage_path);
-    return (
-      <div className="card" key={item.id}>
-        <Link href={`/media/${item.id}`}>
-          {item.media_type === "video" ? (
-            <video className="media" src={data.publicUrl} muted preload="metadata" />
-          ) : (
-            <img className="media" src={data.publicUrl} alt={item.title} loading="lazy" />
-          )}
-        </Link>
-        <div className="card-body">
-          <h3>{item.title}</h3>
-          {item.expires_at && <div className="meta" style={{ marginTop: 7 }}>Expires {new Date(item.expires_at).toLocaleDateString()}</div>}
-          <div style={{ display: "flex", gap: 7, marginTop: 12 }}>
-            <Link className="btn" href={`/media/${item.id}`}>Manage</Link>
-          </div>
-        </div>
+    return <div className="card" key={item.id}>
+      <Link href={`/media/${item.id}`}>
+        {item.media_type === "video"
+          ? <video className="media" src={data.publicUrl} muted playsInline preload="none" />
+          : <img className="media" src={data.publicUrl} alt={item.title} loading="lazy" decoding="async" />}
+      </Link>
+      <div className="card-body">
+        <h3>{item.title}</h3>
+        {item.expires_at && <div className="meta" style={{marginTop:7}}>Expires {new Date(item.expires_at).toLocaleDateString()}</div>}
+        <div style={{display:"flex",gap:7,marginTop:12}}><Link className="btn" href={`/media/${item.id}`}>Manage</Link></div>
       </div>
-    );
+    </div>;
   });
 
   return <section className="section"><div className="container">
     <div className="profile-head">
-      <img className="avatar" src={avatar || "/avatar-placeholder.svg"} alt="" />
+      <img className="avatar" src={avatar || "/avatar-placeholder.svg"} alt="" decoding="async" />
       <div>
-        <div className="eyebrow">Profile</div>
-        <h2>{displayName || p?.username || "Wizard"} {isOwner && <span style={{ display: "inline-block", verticalAlign: "middle", fontSize: 12, letterSpacing: 1, background: "linear-gradient(135deg,#ffe08a,#d99b20)", color: "#241600", padding: "6px 10px", borderRadius: 999, fontWeight: 900 }}>★ OWNER</span>}</h2>
-        <div className="stats"><span className="stat"><strong>{count}</strong> uploads</span><span>{user.email}</span></div>
+        <div className="eyebrow">Your account</div>
+        <h2>{displayName || p?.username || "Wizard"} {isOwner && <span style={{display:"inline-block",verticalAlign:"middle",fontSize:10,letterSpacing:1,background:"linear-gradient(135deg,#ffe08a,#d99b20)",color:"#241600",padding:"6px 10px",borderRadius:999,fontWeight:900}}>★ OWNER</span>}</h2>
+        <div className="stats"><span className="stat"><strong>{count === 60 ? "60+" : count}</strong> recent uploads</span><span>{user.email}</span></div>
       </div>
-      <div style={{ marginLeft: "auto" }}><form action="/api/auth/signout" method="post"><button className="btn">Log out</button></form></div>
+      <div style={{marginLeft:"auto"}}><form action="/api/auth/signout" method="post"><button className="btn">Log out</button></form></div>
     </div>
     <ProfileEditor userId={user.id} initialName={displayName} initialUsername={p?.username || ""} initialAvatar={avatar} />
-    <div className="section-head"><h2>Your uploads</h2><Link className="btn primary" href="/upload">New upload</Link></div>
-    {count ? <div className="grid grid-4">{uploadCards}</div> : <div className="empty">You haven't uploaded anything yet.</div>}
+    <div className="section-head" style={{marginTop:35}}><div><h2>Your uploads</h2><p className="muted">Your latest 60 posts.</p></div><Link className="btn primary" href="/upload">＋ New upload</Link></div>
+    {count ? <div className="grid grid-4">{uploadCards}</div> : <div className="empty">You haven't uploaded anything yet. Share your first photo with the community.</div>}
   </div></section>;
 }

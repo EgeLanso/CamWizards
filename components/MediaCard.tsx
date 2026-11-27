@@ -1,13 +1,15 @@
 import Link from "next/link";
 import type { Upload } from "@/types/database";
 
-export function MediaCard({ item, publicUrl, creator }: { item: Upload; publicUrl: string; creator?: string }) {
+type MediaCardItem = Pick<Upload, "id" | "media_type" | "storage_path" | "title" | "camera_name" | "lens_name">;
+
+export function MediaCard({ item, publicUrl, creator }: { item: MediaCardItem; publicUrl: string; creator?: string }) {
   return (
     <Link href={`/media/${item.id}`} className="card">
       {item.media_type === "video" ? (
-        <video className="media" src={publicUrl} muted preload="metadata" />
+        <video className="media" src={publicUrl} muted playsInline preload="none" aria-label={item.title} />
       ) : (
-        <img className="media" src={publicUrl} alt={item.title} loading="lazy" />
+        <img className="media" src={publicUrl} alt={item.title} loading="lazy" decoding="async" />
       )}
       <div className="card-body">
         <h3>{item.title}</h3>

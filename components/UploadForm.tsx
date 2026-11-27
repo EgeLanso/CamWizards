@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CATEGORIES } from "@/types/database";
 
@@ -9,24 +9,31 @@ const MAX_PHOTOS = 10;
 
 export function UploadForm() {
   const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [camcorder, setCamcorder] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [progress, setProgress] = useState("");
 
-  function toggleCategory(c: string) {
-    setCategories(x => x.includes(c) ? x.filter(v => v !== c) : [...x, c]);
+  useEffect(() => {
+    const urls = files.map(file => file.type.startsWith("image/") ? URL.createObjectURL(file) : "");
+    setPreviews(urls);
+    return () => urls.forEach(url => { if (url) URL.revokeObjectURL(url); });
+  }, [files]);
+
+  function toggleCategory(category: string) {
+    setCategories(current => current.includes(category) ? current.filter(item => item !== category) : [...current, category]);
   }
 
   function chooseFiles(list: FileList | null) {
-    const selected = Array.from(list || []);
-    setFiles(selected);
+    setFiles(Array.from(list || []));
     setMessage("");
   }
 
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    const formElement = e.currentTarget;
-    e.preventDefault();
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    const formElement = event.currentTarget;
+    event.preventDefault();
     if (!files.length) return setMessage("Choose at least one photo or one video.");
     if (!categories.length) return setMessage("Choose at least one category.");
 
@@ -47,9 +54,10 @@ export function UploadForm() {
 
     setBusy(true);
     setMessage("");
+    setProgress("Preparing upload...");
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setMessage("Please log in first."); setBusy(false); return; }
+    if (!user) { setMessage("Please log in first."); setBusy(false); setProgress(""); return; }
 
     const mediaType = isVideo ? "video" : "photo";
     const bucket = isVideo ? "videos" : "photos";
@@ -72,25 +80,27 @@ export function UploadForm() {
     }
 
     const camera = await findOrCreate("cameras", cameraName, { is_camcorder: camcorder });
-    if (!camera.id) { setMessage(camera.error!); setBusy(false); return; }
+    if (!camera.id) { setMessage(camera.error!); setBusy(false); setProgress(""); return; }
 
     let lensId: string | null = null;
     if (lensName) {
       const lens = await findOrCreate("lenses", lensName);
-      if (!lens.id) { setMessage(lens.error!); setBusy(false); return; }
+      if (!lens.id) { setMessage(lens.error!); setBusy(false); setProgress(""); return; }
       lensId = lens.id;
     }
 
     const uploadedPaths: string[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const { error: uploadError } = await supabase.storage.from(bucket).upload(paths[i], files[i], { upsert: false, contentType: files[i].type });
+    for (let index = 0; index < files.length; index++) {
+      setProgress(`Uploading ${index + 1} of ${files.length}...`);
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(paths[index], files[index], { upsert: false, contentType: files[index].type });
       if (uploadError) {
         if (uploadedPaths.length) await supabase.storage.from(bucket).remove(uploadedPaths);
         setMessage(uploadError.message);
         setBusy(false);
+        setProgress("");
         return;
       }
-      uploadedPaths.push(paths[i]);
+      uploadedPaths.push(paths[index]);
     }
 
     const rollback = async (uploadId?: string) => {
@@ -100,27 +110,23 @@ export function UploadForm() {
 
     const price = form.get("price") ? Number(form.get("price")) : null;
     const expiresAt = mediaType === "video" ? new Date(Date.now() + 10 * 86400000).toISOString() : null;
+    setProgress("Saving post details...");
     const { data: created, error } = await supabase.from("uploads").insert({
-      user_id: user.id,
-      media_type: mediaType,
-      storage_path: paths[0],
+      user_id: user.id, media_type: mediaType, storage_path: paths[0],
       title: String(form.get("title") || "").trim() || "Untitled",
       description: String(form.get("description") || "").trim() || null,
-      camera_id: camera.id,
-      lens_id: lensId,
-      camera_name: cameraName,
-      lens_name: lensName,
+      camera_id: camera.id, lens_id: lensId, camera_name: cameraName, lens_name: lensName,
       camera_price: price !== null && Number.isFinite(price) && price >= 0 ? price : null,
       currency: String(form.get("currency") || "USD"),
       purchased_from: String(form.get("purchased_from") || "").trim() || null,
-      condition: String(form.get("condition") || "new"),
-      expires_at: expiresAt
+      condition: String(form.get("condition") || "new"), expires_at: expiresAt
     }).select("id").single();
 
     if (error || !created) {
       await rollback();
       setMessage(error?.message || "Could not save upload.");
       setBusy(false);
+      setProgress("");
       return;
     }
 
@@ -131,20 +137,23 @@ export function UploadForm() {
         await rollback(created.id);
         setMessage(mediaError.message);
         setBusy(false);
+        setProgress("");
         return;
       }
     }
 
     const rows = categories.map(category => ({ upload_id: created.id, category }));
-    const { error: catError } = await supabase.from("upload_categories").insert(rows);
-    if (catError) {
+    const { error: categoryError } = await supabase.from("upload_categories").insert(rows);
+    if (categoryError) {
       await rollback(created.id);
-      setMessage(catError.message);
+      setMessage(categoryError.message);
       setBusy(false);
+      setProgress("");
       return;
     }
 
     setMessage("Upload published successfully.");
+    setProgress("");
     formElement.reset();
     setFiles([]);
     setCategories([]);
@@ -156,24 +165,25 @@ export function UploadForm() {
     <form className="form-grid" onSubmit={submit}>
       <div className="full">
         <label className="label">Photos or video</label>
-        <input className="input" type="file" accept="image/*,video/*" multiple onChange={e => chooseFiles(e.target.files)} />
+        <input className="input" type="file" accept="image/*,video/*" multiple disabled={busy} onChange={event => chooseFiles(event.target.files)} />
         <div className="notice" style={{marginTop:8}}>Select up to {MAX_PHOTOS} photos for one gallery, or one video. Each photo can be up to {MAX_PHOTO_MB} MB; videos can be up to {MAX_VIDEO_MB} MB.</div>
-        {files.length > 0 && <div className="meta" style={{marginTop:8}}>{files.length} file(s) selected: {files.map(file => file.name).join(", ")}</div>}
+        {files.length > 0 && <div className="file-preview-grid">{files.map((file,index)=><div className="file-preview" key={`${file.name}-${file.lastModified}-${index}`}>
+          {previews[index] ? <img src={previews[index]} alt="" /> : <div className="file-video-preview">VIDEO</div>}
+          <span title={file.name}>{file.name}</span>
+        </div>)}</div>}
       </div>
-      <div><label className="label">Camera</label><input className="input" name="camera" placeholder="Sony A7 III" required /></div>
-      <div><label className="label">Camera type</label><label className="check"><input type="checkbox" checked={camcorder} onChange={e=>setCamcorder(e.target.checked)} /> Handycam / Camcorder</label></div>
-      <div><label className="label">Lens {camcorder && "(not applicable)"}</label><input className="input" name="lens" placeholder="FE 50mm F1.8" disabled={camcorder} /></div>
-      <div><label className="label">Price</label><input className="input" name="price" type="number" min="0" step="0.01" placeholder="999" /></div>
-      <div><label className="label">Currency</label><select name="currency"><option>USD</option><option>EUR</option><option>GBP</option><option>TRY</option><option>JPY</option></select></div>
-      <div><label className="label">Bought from</label><input className="input" name="purchased_from" placeholder="Store / marketplace" /></div>
-      <div><label className="label">Condition</label><select name="condition"><option value="new">New</option><option value="used">Second-hand</option></select></div>
-      <div className="full"><label className="label">Title</label><input className="input" name="title" placeholder="Rainy Tokyo crossing" required /></div>
-      <div className="full"><label className="label">Description</label><textarea name="description" rows={5} placeholder="Tell people how the setup performed..." /></div>
-      <div className="full"><label className="label">Categories</label><div className="check-grid">{CATEGORIES.map(c=><label className="check" key={c}><input type="checkbox" checked={categories.includes(c)} onChange={()=>toggleCategory(c)} />{c}</label>)}</div></div>
-      <div className="full">
-        <div className="notice">Videos automatically expire after 10 days. You can renew them from your profile before they expire.</div>
-      </div>
-      <div className="full"><button className="btn primary" disabled={busy}>{busy ? "Publishing..." : "Publish to CamWizards"}</button>{message && <p className={message.includes("success") ? "success" : "error"}>{message}</p>}</div>
+      <div><label className="label">Camera</label><input className="input" name="camera" placeholder="Sony A7 III" required disabled={busy} /></div>
+      <div><label className="label">Camera type</label><label className="check"><input type="checkbox" checked={camcorder} disabled={busy} onChange={event=>setCamcorder(event.target.checked)} /> Handycam / Camcorder</label></div>
+      <div><label className="label">Lens {camcorder && "(not applicable)"}</label><input className="input" name="lens" placeholder="FE 50mm F1.8" disabled={camcorder || busy} /></div>
+      <div><label className="label">Price</label><input className="input" name="price" type="number" min="0" step="0.01" placeholder="999" disabled={busy} /></div>
+      <div><label className="label">Currency</label><select name="currency" disabled={busy}><option>TRY</option><option>USD</option><option>EUR</option><option>GBP</option><option>JPY</option></select></div>
+      <div><label className="label">Bought from</label><input className="input" name="purchased_from" placeholder="Store / marketplace" disabled={busy} /></div>
+      <div><label className="label">Condition</label><select name="condition" disabled={busy}><option value="new">New</option><option value="used">Second-hand</option></select></div>
+      <div className="full"><label className="label">Title</label><input className="input" name="title" placeholder="Rainy Tokyo crossing" required disabled={busy} /></div>
+      <div className="full"><label className="label">Description</label><textarea name="description" rows={4} placeholder="Tell people how the setup performed..." disabled={busy} /></div>
+      <div className="full"><label className="label">Categories</label><div className="check-grid">{CATEGORIES.map(category=><label className="check" key={category}><input type="checkbox" checked={categories.includes(category)} disabled={busy} onChange={()=>toggleCategory(category)} />{category}</label>)}</div></div>
+      <div className="full"><div className="notice">Videos automatically expire after 10 days. You can renew them from your profile before they expire.</div></div>
+      <div className="full"><button className="btn primary" disabled={busy}>{busy ? "Publishing..." : "Publish to CamWizards"}</button>{progress && <p className="muted" aria-live="polite">{progress}</p>}{message && <p className={message.includes("success") ? "success" : "error"} aria-live="polite">{message}</p>}</div>
     </form>
   );
 }
