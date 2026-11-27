@@ -95,6 +95,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  if (action === "clear-chat") {
+    if (staff.role === "moderator") {
+      return NextResponse.json({ error: "Only admins and the owner can clear the public lounge." }, { status: 403 });
+    }
+    const { count, error } = await admin.from("chat_messages")
+      .update({ status: "removed" }, { count: "exact" })
+      .neq("status", "removed");
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const cleared = count || 0;
+    await admin.from("moderation_logs").insert({
+      user_id: staff.user.id,
+      content_type: "chat",
+      decision: "cleared_by_staff",
+      reason: "Public lounge cleared. " + cleared + " messages hidden."
+    });
+    return NextResponse.json({ ok: true, cleared });
+  }
+
   if (action === "remove-chat") {
     if (!input.messageId) return NextResponse.json({ error: "Missing message ID." }, { status: 400 });
     const { error } = await admin.from("chat_messages").update({ status: "removed" }).eq("id", String(input.messageId));

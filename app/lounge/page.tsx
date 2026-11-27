@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Lounge from "@/components/Lounge";
+import PrivateChats from "@/components/PrivateChats";
 
 export const dynamic = "force-dynamic";
 
@@ -22,5 +23,6 @@ export default async function LoungePage(){
     <div className="eyebrow">Community lounge</div><h1 style={{fontSize:"clamp(38px,6vw,64px)"}}>Talk photography.</h1>
     <p className="lead">Ask about camera bodies, lenses, settings, editing and real-world shooting experiences.</p>
     <Lounge initialMessages={initialMessages} currentUserId={user.id}/>
+    <PrivateChats/>
   </div></section>;
 }
