@@ -21,9 +21,11 @@ export async function middleware(request: NextRequest) {
   // Use the Auth server's verified user record. Treat transient auth failures as
   // unauthenticated for middleware purposes; protected pages and API routes enforce access too.
   let userId: string | null = null;
+  let userEmail: string | null = null;
   try {
     const { data: { user } } = await supabase.auth.getUser();
     userId = user?.id ?? null;
+    userEmail = user?.email ?? null;
   } catch {
     response.headers.set("Cache-Control", "private, no-store");
     return response;
@@ -37,7 +39,10 @@ export async function middleware(request: NextRequest) {
   const protectedPath = ["/upload", "/lounge", "/admin", "/profile"].some(path =>
     request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + "/")
   );
-  if (protectedPath) {
+  const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
+  const isOwner = Boolean(ownerEmail && userEmail?.trim().toLowerCase() === ownerEmail);
+  // The owner must be able to reach the control room to review and lift an erroneous ban.
+  if (protectedPath && !isOwner) {
     const { data: ban } = await supabase.from("user_bans").select("id")
       .eq("user_id", userId).is("revoked_at", null)
       .or("expires_at.is.null,expires_at.gt." + new Date().toISOString())
