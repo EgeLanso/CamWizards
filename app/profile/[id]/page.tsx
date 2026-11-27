@@ -9,11 +9,9 @@ export default async function PublicProfile({ params }: { params: Promise<{ id: 
   const { id } = await params;
   if (!UUID.test(id)) notFound();
   const s = await createClient();
-  const [{ data: p }, isOwner] = await Promise.all([
-    s.from("profiles").select("username,display_name,avatar_url,xp").eq("id", id).maybeSingle(),
-    isOwnerAccount(id)
-  ]);
+  const { data: p } = await s.from("profiles").select("username,display_name,avatar_url,xp").eq("id", id).maybeSingle();
   if (!p) notFound();
+  const isOwner = await isOwnerAccount(id);
 
   const { data: items } = await s.from("uploads").select("id,media_type,storage_path,title,camera_name,lens_name")
     .eq("user_id", id)
@@ -32,7 +30,7 @@ export default async function PublicProfile({ params }: { params: Promise<{ id: 
       <div>
         <div className="eyebrow">{isOwner ? "CamWizards owner" : "Community member"}</div>
         <h2>{p.display_name || p.username} {isOwner && <span style={{display:"inline-block",verticalAlign:"middle",fontSize:10,letterSpacing:1,background:"linear-gradient(135deg,#ffe08a,#d99b20)",color:"#241600",padding:"6px 10px",borderRadius:999,fontWeight:900}}>★ OWNER</span>}</h2>
-        <div className="stats"><span>@{p.username}</span><span className="stat"><strong>{p.xp || 0}</strong> XP</span><span className="stat"><strong>{items?.length === 48 ? "48+" : items?.length || 0}</strong> recent uploads</span></div>
+        <div className="stats"><span>@{p.username}</span><span className="stat"><strong>{items?.length === 48 ? "48+" : items?.length || 0}</strong> recent uploads</span><span className="stat"><strong>{p.xp || 0}</strong> XP</span></div>
       </div>
     </div>
     <div className="section-head"><div><h2>Photos and videos</h2><p className="muted">Latest public posts from this photographer.</p></div></div>
