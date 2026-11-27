@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveBan } from "@/lib/community/access";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const s = await createClient();
   const { data: { user } } = await s.auth.getUser();
   if (!user) return NextResponse.redirect(new URL("/login", req.url), 303);
+  if (await getActiveBan(user.id)) return NextResponse.redirect(new URL("/suspended", req.url), 303);
 
   const { data: item } = await s.from("uploads").select("user_id,media_type,expires_at").eq("id", id).maybeSingle();
   if (!item || item.user_id !== user.id || item.media_type !== "video") {

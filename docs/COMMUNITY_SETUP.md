@@ -5,11 +5,13 @@
 1. Merge PR #3 (the visual redesign) first.
 2. In Supabase SQL Editor, run the complete file:
    `supabase/migrations/20261126_community_admin_xp_moderation.sql`
-3. In Vercel → Project → Settings → Environment Variables, add these as **Secret** values for Production (and Preview if you use it):
+3. Then run the incremental suspension-guard migration:
+   `supabase/migrations/20261127_ban_interactions_guard.sql`
+4. In Vercel → Project → Settings → Environment Variables, add these as **Secret** values for Production (and Preview if you use it):
    - `SUPABASE_SERVICE_ROLE_KEY` — Supabase project service-role key. Server only; never prefix with `NEXT_PUBLIC_`.
    - `GROQ_API_KEY` — API key from GroqCloud. Server only.
-4. Keep the existing `OWNER_EMAIL` environment variable set to the owner's sign-in email.
-5. Merge this feature PR and redeploy.
+5. Keep the existing `OWNER_EMAIL` environment variable set to the owner's sign-in email.
+6. Merge this feature PR and redeploy.
 
 Do not paste either secret into GitHub, source files, browser code, or chat. If a secret has ever been exposed publicly, rotate it.
 
