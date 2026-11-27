@@ -29,7 +29,7 @@ export function normalizeLocale(value?:string|null):Locale {
 }
 
 export function getRank(xp:number, locale:Locale="en") {
-  let current = levels[0];
+  let current: (typeof levels)[number] = levels[0];
   for (const level of levels) if (xp >= level.min) current = level;
   const next = levels[levels.indexOf(current)+1];
   return {key:current.key,label:labels[locale][current.key],xp,xpToNext:next?.min ?? null,nextLabel:next ? labels[locale][next.key] : null};
