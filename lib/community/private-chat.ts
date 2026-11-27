@@ -79,7 +79,7 @@ export function privateChatCookieOptions(chatId: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
-    path: "/api/private-chats/" + chatId,
+    path: "/api/private-chats",
     maxAge: 6 * 60 * 60
   };
 }

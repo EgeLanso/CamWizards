@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActiveBan } from "@/lib/community/access";
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 type Context = { params: Promise<{ id: string }> };
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
-async function getRoomAccess(request: Request, id: string) {
+async function getRoomAccess(request: NextRequest, id: string) {
   const session = await createClient();
   const { data: { user } } = await session.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Sign in first." }, { status: 401 }) };
@@ -24,8 +24,7 @@ async function getRoomAccess(request: Request, id: string) {
   if (!room || !membership) return { error: NextResponse.json({ error: "Room not found." }, { status: 404 }) };
 
   if (room.password_hash) {
-    const cookieRequest = request as Request & { cookies?: { get(name: string): { value: string } | undefined } };
-    const ticket = cookieRequest.cookies?.get(privateChatCookieName(id))?.value;
+    const ticket = request.cookies.get(privateChatCookieName(id))?.value;
     if (!verifyPrivateChatTicket(ticket, id, user.id)) {
       return { error: NextResponse.json({ error: "Enter this room's password first." }, { status: 403 }) };
     }
@@ -33,7 +32,7 @@ async function getRoomAccess(request: Request, id: string) {
   return { user, admin };
 }
 
-export async function GET(request: Request, context: Context) {
+export async function GET(request: NextRequest, context: Context) {
   const { id } = await context.params;
   if (!isUuid(id)) return NextResponse.json({ error: "Room not found." }, { status: 404 });
   const access = await getRoomAccess(request, id);
@@ -64,7 +63,7 @@ export async function GET(request: Request, context: Context) {
   });
 }
 
-export async function POST(request: Request, context: Context) {
+export async function POST(request: NextRequest, context: Context) {
   const { id } = await context.params;
   if (!isUuid(id)) return NextResponse.json({ error: "Room not found." }, { status: 404 });
   const access = await getRoomAccess(request, id);

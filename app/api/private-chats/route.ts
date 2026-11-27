@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActiveBan } from "@/lib/community/access";
@@ -12,7 +12,7 @@ import {
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const session = await createClient();
   const { data: { user } } = await session.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
@@ -46,8 +46,7 @@ export async function GET(request: Request) {
   const result = (rooms || []).map(room => {
     const locked = Boolean(room.password_hash);
     const unlocked = !locked || verifyPrivateChatTicket(
-      (request as Request & { cookies?: { get(name: string): { value: string } | undefined } })
-        .cookies?.get(privateChatCookieName(room.id))?.value,
+      request.cookies.get(privateChatCookieName(room.id))?.value,
       room.id,
       user.id
     );
@@ -128,7 +127,7 @@ export async function POST(request: Request) {
       ...room,
       locked: Boolean(passwordHash),
       unlocked: true,
-      participants: [user.username || "You", ...found.filter(profile => profile.id !== user.id).map(profile => profile.username)]
+      participants: ["You", ...found.filter(profile => profile.id !== user.id).map(profile => profile.username)]
     }
   }, { status: 201 });
 
