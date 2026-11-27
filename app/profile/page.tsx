@@ -2,10 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import ProfileEditor from "@/components/ProfileEditor";
+import { cookies } from "next/headers";
+import { getRank, normalizeLocale } from "@/lib/ranks";
 
 const OWNER_EMAIL = process.env.OWNER_EMAIL?.toLowerCase();
 
+export const dynamic = "force-dynamic";
+
 export default async function Profile() {
+  const locale = normalizeLocale((await cookies()).get("cw_locale")?.value);
   const s = await createClient();
   const { data: { user } } = await s.auth.getUser();
   if (!user) redirect("/login");
@@ -42,7 +47,7 @@ export default async function Profile() {
       <div>
         <div className="eyebrow">Your account</div>
         <h2>{displayName || p?.username || "Wizard"} {isOwner && <span style={{display:"inline-block",verticalAlign:"middle",fontSize:10,letterSpacing:1,background:"linear-gradient(135deg,#ffe08a,#d99b20)",color:"#241600",padding:"6px 10px",borderRadius:999,fontWeight:900}}>★ OWNER</span>}</h2>
-        <div className="stats"><span className="stat"><strong>{p?.xp || 0}</strong> XP</span><span className="stat"><strong>{count === 60 ? "60+" : count}</strong> recent uploads</span><span>{user.email}</span></div>
+        <div className="stats"><span className="stat"><strong>{p?.xp || 0}</strong> XP</span><span className="pill">{getRank(p?.xp || 0, locale).label}</span><span className="stat"><strong>{count === 60 ? "60+" : count}</strong> recent uploads</span><span>{user.email}</span></div>
       </div>
       <div style={{marginLeft:"auto"}}><form action="/api/auth/signout" method="post"><button className="btn">Log out</button></form></div>
     </div>

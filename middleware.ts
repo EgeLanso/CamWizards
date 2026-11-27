@@ -17,14 +17,23 @@ export async function middleware(request: NextRequest) {
       }
     }
   );
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return response;
-  const { data: ban } = await supabase.from("user_bans").select("id")
-    .eq("user_id", user.id).is("revoked_at", null)
-    .or("expires_at.is.null,expires_at.gt." + new Date().toISOString())
-    .limit(1).maybeSingle();
-  if (ban) return NextResponse.redirect(new URL("/suspended", request.url));
+  const { data: { claims } } = await supabase.auth.getClaims();
+  if (!claims?.sub) {
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  }
+  const protectedPath = ["/upload", "/lounge", "/admin", "/profile"].some(path =>
+    request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + "/")
+  );
+  if (protectedPath) {
+    const { data: ban } = await supabase.from("user_bans").select("id")
+      .eq("user_id", claims.sub).is("revoked_at", null)
+      .or("expires_at.is.null,expires_at.gt." + new Date().toISOString())
+      .limit(1).maybeSingle();
+    if (ban) return NextResponse.redirect(new URL("/suspended", request.url));
+  }
+  response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
 
-export const config = { matcher: ["/upload/:path*", "/lounge/:path*", "/admin/:path*", "/profile/:path*"] };
+export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
