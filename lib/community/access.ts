@@ -17,6 +17,17 @@ export async function getStaffContext() {
   return { user, role, isOwner, admin };
 }
 
+export async function isOwnerAccount(userId: string): Promise<boolean> {
+  const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
+  if (!ownerEmail || !process.env.SUPABASE_SERVICE_ROLE_KEY) return false;
+  try {
+    const { data, error } = await createAdminClient().auth.admin.getUserById(userId);
+    return !error && data.user?.email?.trim().toLowerCase() === ownerEmail;
+  } catch {
+    return false;
+  }
+}
+
 export async function getActiveBan(userId: string) {
   const supabase = await createClient();
   const { data } = await supabase.from("user_bans").select("id,reason,expires_at")
