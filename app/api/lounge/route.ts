@@ -68,6 +68,6 @@ export async function POST(request: Request) {
     status: "removed",
     message: result.decision === "ban" && result.confidence >= 0.9
       ? "A serious community-rule violation was detected. Your account is temporarily suspended for 24 hours."
-      : result.decision === "hold" ? "Message held for moderator review." : "Message was not published because it violated the community rules."
+      : "Message was not published because it violated the community rules."
   });
 }
