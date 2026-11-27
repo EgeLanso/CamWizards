@@ -1,10 +1,13 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { getStaffContext, canModerate } from "@/lib/community/access";
 import AdminPanel from "@/components/AdminPanel";
+import { normalizeLocale } from "@/lib/ranks";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
+  const locale = normalizeLocale((await cookies()).get("cw_locale")?.value);
   const staff = await getStaffContext();
   if (!staff.user) redirect("/login");
   if (!canModerate(staff.role)) redirect("/profile");
@@ -27,9 +30,15 @@ export default async function AdminPage() {
   const users = new Map((usersResult.data?.users || []).map(row => [row.id, row.email || ""]));
   users.set(staff.user.id, staff.user.email || "");
   const profiles = [...(profilesResult.data || [])];
-  if (ownerProfileResult.data && !profiles.some(profile => profile.id === staff.user!.id)) {
-    profiles.unshift(ownerProfileResult.data);
+  if (ownerProfileResult.data && !profiles.some(profile => profile.id === staff.user!.id)) profiles.unshift(ownerProfileResult.data);
+
+  const reportProfileIds = Array.from(new Set((reportsResult.data || []).map(report => report.target_user_id).filter(Boolean) as string[]));
+  const missingReportProfileIds = reportProfileIds.filter(id => !profiles.some(profile => profile.id === id));
+  if (missingReportProfileIds.length) {
+    const { data: extraProfiles } = await db.from("profiles").select("id,username,display_name,avatar_url,xp,created_at").in("id", missingReportProfileIds);
+    profiles.push(...(extraProfiles || []));
   }
+
   const bans = bansResult.data || [];
   const members = profiles.map(profile => ({
     ...profile,
@@ -53,5 +62,6 @@ export default async function AdminPage() {
     reports={reportsResult.data || []}
     logs={logsResult.data || []}
     profileNames={Object.fromEntries(profileNames)}
+    locale={locale}
   />;
 }
