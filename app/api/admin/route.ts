@@ -59,6 +59,14 @@ export async function POST(request: Request) {
 
   if (action === "unban") {
     if (staff.role === "moderator") return NextResponse.json({ error: "Moderators cannot lift account suspensions." }, { status: 403 });
+    if (!targetId) return NextResponse.json({ error: "Missing target account." }, { status: 400 });
+    const { data: target } = await admin.auth.admin.getUserById(targetId);
+    if (!target?.user) return NextResponse.json({ error: "Account not found." }, { status: 404 });
+    const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
+    const targetIsOwner = Boolean(ownerEmail && target.user.email?.trim().toLowerCase() === ownerEmail);
+    if (targetIsOwner && !staff.isOwner) {
+      return NextResponse.json({ error: "Only the owner can lift the owner account's suspension." }, { status: 403 });
+    }
     const { error } = await admin.from("user_bans").update({ revoked_at: new Date().toISOString() })
       .eq("user_id", targetId).is("revoked_at", null);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
