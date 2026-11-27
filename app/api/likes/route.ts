@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveBan } from "@/lib/community/access";
 
 async function handle(request:Request, method:"POST"|"DELETE") {
   const body=method==="POST" || method==="DELETE" ? await request.json().catch(()=>({})) : {};
@@ -9,6 +10,8 @@ async function handle(request:Request, method:"POST"|"DELETE") {
   const {data:{user}}=await supabase.auth.getUser();
   if(!user) return NextResponse.json({error:"Login required"},{status:401});
   if(method==="POST") {
+    const ban=await getActiveBan(user.id);
+    if(ban) return NextResponse.json({error:"Your account is suspended.",expiresAt:ban.expires_at},{status:403});
     const {error}=await supabase.from("likes").insert({upload_id:uploadId,user_id:user.id});
     if(error && error.code!=="23505") return NextResponse.json({error:error.message},{status:400});
   } else {
