@@ -17,7 +17,8 @@ export async function middleware(request: NextRequest) {
       }
     }
   );
-  const { data: { claims } } = await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
   if (!claims?.sub) {
     response.headers.set("Cache-Control", "private, no-store");
     return response;
