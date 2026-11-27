@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveBan } from "@/lib/community/access";
 
 export async function POST(request:Request){
  const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();
  if(!user)return NextResponse.json({error:"Sign in to report content."},{status:401});
+ if(await getActiveBan(user.id))return NextResponse.json({error:"Your account is suspended."},{status:403});
  let body:{uploadId?:string;reason?:string};
  try{body=await request.json();}catch{return NextResponse.json({error:"Invalid request."},{status:400});}
  if(!body.uploadId||!body.reason)return NextResponse.json({error:"Choose a reason."},{status:400});
