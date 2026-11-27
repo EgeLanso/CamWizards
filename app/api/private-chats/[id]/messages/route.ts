@@ -15,6 +15,9 @@ async function getRoomAccess(request: NextRequest, id: string) {
   const session = await createClient();
   const { data: { user } } = await session.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Sign in first." }, { status: 401 }) };
+  if (await getActiveBan(user.id)) {
+    return { error: NextResponse.json({ error: "Your account is suspended." }, { status: 403 }) };
+  }
 
   const admin = createAdminClient();
   const [{ data: room }, { data: membership }] = await Promise.all([
@@ -68,9 +71,6 @@ export async function POST(request: NextRequest, context: Context) {
   if (!isUuid(id)) return NextResponse.json({ error: "Room not found." }, { status: 404 });
   const access = await getRoomAccess(request, id);
   if ("error" in access) return access.error;
-
-  const ban = await getActiveBan(access.user.id);
-  if (ban) return NextResponse.json({ error: "Your account is suspended." }, { status: 403 });
 
   let input: { message?: unknown };
   try { input = await request.json(); }

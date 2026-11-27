@@ -19,9 +19,7 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient();
   const { data: memberships, error: membershipError } = await admin
-    .from("private_chat_members")
-    .select("chat_id")
-    .eq("user_id", user.id);
+    .from("private_chat_members").select("chat_id").eq("user_id", user.id);
   if (membershipError) return NextResponse.json({ error: "Could not load private rooms." }, { status: 500 });
 
   const roomIds = Array.from(new Set((memberships || []).map(row => row.chat_id)));
@@ -43,27 +41,23 @@ export async function GET(request: NextRequest) {
     profile.username || profile.display_name || "Member"
   ]));
 
-  const result = (rooms || []).map(room => {
-    const locked = Boolean(room.password_hash);
-    const unlocked = !locked || verifyPrivateChatTicket(
-      request.cookies.get(privateChatCookieName(room.id))?.value,
-      room.id,
-      user.id
-    );
-    return {
+  return NextResponse.json({
+    rooms: (rooms || []).map(room => ({
       id: room.id,
       name: room.name,
       owner_id: room.owner_id,
       created_at: room.created_at,
-      locked,
-      unlocked,
+      locked: Boolean(room.password_hash),
+      unlocked: !room.password_hash || verifyPrivateChatTicket(
+        request.cookies.get(privateChatCookieName(room.id))?.value,
+        room.id,
+        user.id
+      ),
       participants: (memberRows || [])
         .filter(member => member.chat_id === room.id)
         .map(member => names.get(member.user_id) || "Member")
-    };
+    }))
   });
-
-  return NextResponse.json({ rooms: result });
 }
 
 export async function POST(request: Request) {
@@ -73,70 +67,41 @@ export async function POST(request: Request) {
   const ban = await getActiveBan(user.id);
   if (ban) return NextResponse.json({ error: "Your account is suspended." }, { status: 403 });
 
-  let input: { name?: unknown; usernames?: unknown; password?: unknown };
+  let input: { name?: unknown; password?: unknown };
   try { input = await request.json(); }
   catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
 
   const name = String(input.name || "").trim();
+  const password = String(input.password || "");
   if (!name || name.length > 60) {
     return NextResponse.json({ error: "Room name must be 1–60 characters." }, { status: 400 });
   }
-
-  const usernames = Array.isArray(input.usernames)
-    ? Array.from(new Set(input.usernames.map(value => String(value).trim().replace(/^@/, "")).filter(Boolean)))
-    : [];
-  if (!usernames.length || usernames.length > 20) {
-    return NextResponse.json({ error: "Add 1–20 friends by their exact usernames." }, { status: 400 });
-  }
-
-  const password = String(input.password || "");
-  if (password && (password.length < 6 || password.length > 64)) {
-    return NextResponse.json({ error: "Room password must be 6–64 characters." }, { status: 400 });
+  if (password.length < 6 || password.length > 64) {
+    return NextResponse.json({ error: "Room password is required and must be 6–64 characters." }, { status: 400 });
   }
 
   const admin = createAdminClient();
-  const { data: profiles, error: profilesError } = await admin
-    .from("profiles").select("id,username").in("username", usernames);
-  if (profilesError) return NextResponse.json({ error: "Could not look up usernames." }, { status: 500 });
-
-  const found = profiles || [];
-  const foundNames = new Set(found.map(profile => profile.username));
-  const missing = usernames.filter(username => !foundNames.has(username));
-  if (missing.length) {
-    return NextResponse.json({ error: "Username not found: " + missing.join(", ") }, { status: 404 });
-  }
-
-  const passwordHash = password ? await hashPrivateChatPassword(password) : null;
+  const passwordHash = await hashPrivateChatPassword(password);
   const { data: room, error: roomError } = await admin.from("private_chats")
     .insert({ name, owner_id: user.id, password_hash: passwordHash })
     .select("id,name,owner_id,created_at")
     .single();
   if (roomError || !room) return NextResponse.json({ error: "Could not create the room." }, { status: 500 });
 
-  const participantIds = Array.from(new Set([user.id, ...found.map(profile => profile.id)]));
-  const { error: membersError } = await admin.from("private_chat_members").insert(
-    participantIds.map(userId => ({ chat_id: room.id, user_id: userId, added_by: user.id }))
-  );
-  if (membersError) {
+  const { error: memberError } = await admin.from("private_chat_members")
+    .insert({ chat_id: room.id, user_id: user.id, added_by: user.id });
+  if (memberError) {
     await admin.from("private_chats").delete().eq("id", room.id);
-    return NextResponse.json({ error: "Could not add the selected members." }, { status: 500 });
+    return NextResponse.json({ error: "Could not create room membership." }, { status: 500 });
   }
 
   const response = NextResponse.json({
-    room: {
-      ...room,
-      locked: Boolean(passwordHash),
-      unlocked: true,
-      participants: ["You", ...found.filter(profile => profile.id !== user.id).map(profile => profile.username)]
-    }
+    room: { ...room, locked: true, unlocked: true, participants: ["You"] }
   }, { status: 201 });
-
-  if (passwordHash) {
-    response.cookies.set(
-      privateChatCookieName(room.id),
-      createPrivateChatTicket(room.id, user.id),
-      privateChatCookieOptions(room.id)
-    );
-  }
+  response.cookies.set(
+    privateChatCookieName(room.id),
+    createPrivateChatTicket(room.id, user.id),
+    privateChatCookieOptions(room.id)
+  );
   return response;
 }

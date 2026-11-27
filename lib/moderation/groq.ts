@@ -15,7 +15,7 @@ async function callGroq(messages: unknown[]): Promise<ReviewResult> {
   if (!key) throw new Error("GROQ_API_KEY is not configured.");
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: MODEL,
       messages,
@@ -26,7 +26,7 @@ async function callGroq(messages: unknown[]): Promise<ReviewResult> {
     }),
     cache: "no-store"
   });
-  if (!response.ok) throw new Error(`Groq moderation unavailable (${response.status}).`);
+  if (!response.ok) throw new Error("Groq moderation unavailable (" + response.status + ").");
   const payload = await response.json();
   const raw = payload.choices?.[0]?.message?.content;
   if (typeof raw !== "string") throw new Error("Groq returned an empty moderation result.");
@@ -37,66 +37,43 @@ async function callGroq(messages: unknown[]): Promise<ReviewResult> {
     categories: Array.isArray(parsed.categories) ? parsed.categories.slice(0, 8).map(String) : [],
     reason: String(parsed.reason || "Needs moderator review.").slice(0, 400),
     confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0)),
-    originality: ["likely_original", "possible_edit", "uncertain"].includes(parsed.originality) ? parsed.originality : "uncertain"
+    originality: "uncertain"
   };
 }
 
-const POLICY = `You are the moderation classifier for CamWizards, a photography community.
-Allow ordinary profanity and casual swearing. Do NOT punish a post merely for words like fuck, shit, damn or similar ordinary swearing.
-Reject sexual content, nudity, graphic violence, self-harm promotion, threats, doxxing, spam, hateful symbols, and discriminatory abuse.
-Racial slurs including the N-word used as abuse are severe hate speech. Targeted harassment, sexual harassment, or credible threats are severe.
+const CHAT_POLICY = \`You are the moderation classifier for CamWizards, a photography community.
+Allow ordinary profanity and casual swearing. Do NOT punish a message merely for words like fuck, shit, damn or similar ordinary swearing.
+Reject threats, doxxing, targeted harassment, hateful slurs used as abuse, sexual harassment, spam and scams.
 Distinguish abuse from neutral educational or reporting context; if context is unclear choose hold, not ban.
 For chat: decision=ban only for high-confidence severe hate slurs, targeted harassment or credible threats. decision=reject for other disallowed content. decision=hold if uncertain.
-For photos: reject disallowed harmful imagery; hold uncertain cases. Never infer that a photo is authentic from appearance alone.
-Return ONLY JSON: {"decision":"approve|hold|reject|ban","categories":["..."],"reason":"short reason","confidence":0.0,"originality":"likely_original|possible_edit|uncertain"}.`;
+Return ONLY JSON: {"decision":"approve|hold|reject|ban","categories":["..."],"reason":"short reason","confidence":0.0,"originality":"uncertain"}.\`;
+
+const NAME_POLICY = \`You review only text metadata for a photography community.
+Do not request, inspect, infer or moderate any photo, video, thumbnail, image URL or file content. Media files are not sent to this review.
+Check only the post title, camera name and lens name for slurs, targeted harassment, sexual content, threats, spam, scams or clearly abusive names. Allow ordinary profanity in context. Do not reject a camera or lens name merely because it is unfamiliar or contains a brand/model number.
+If uncertain, choose hold. Return ONLY JSON: {"decision":"approve|hold|reject","categories":["..."],"reason":"short reason","confidence":0.0,"originality":"uncertain"}.\`;
 
 export async function moderateChat(body: string) {
-  return callGroq([{ role: "system", content: POLICY }, { role: "user", content: `Classify this chat message. Remember: normal swearing is allowed. Message: ${body.slice(0, 1000)}` }]);
+  return callGroq([
+    { role: "system", content: CHAT_POLICY },
+    { role: "user", content: "Classify this chat message. Message: " + body.slice(0, 1000) }
+  ]);
 }
 
 export async function moderateUpload(input: {
-  title: string; description: string; camera: string; lens: string | null;
-  price: number | null; currency: string | null; imageUrls: string[];
+  title: string;
+  camera: string;
+  lens: string | null;
 }) {
-  if (input.imageUrls.length > 3) {
-    return { decision: "hold", categories: ["partial_image_scan"], reason: "This post has more than three photos; manual review is required so no unscanned images slip through.", confidence: 1, originality: "uncertain" } as ReviewResult;
-  }
-  const content: Array<Record<string, unknown>> = [{
-    type: "text",
-    text: `Review this photography post for safety and obvious metadata inconsistencies. Title: ${input.title}. Description: ${input.description}. Camera claimed: ${input.camera}. Lens claimed: ${input.lens || "not provided"}. Price: ${input.price ?? "not provided"} ${input.currency || ""}. Check only for obvious mismatches or unsafe imagery. You cannot verify camera provenance or current market price from pixels. If unsure, hold. Ordinary profanity in the text is allowed. Return the required JSON. For originality, only flag obvious screenshot/collage/strong synthetic-art indicators; otherwise use uncertain or likely_original, but never claim proof.`
-  }];
-  for (const url of input.imageUrls) content.push({ type: "image_url", image_url: { url } });
-  return callGroq([{ role: "system", content: POLICY }, { role: "user", content }]);
+  return callGroq([
+    { role: "system", content: NAME_POLICY },
+    { role: "user", content:
+      "Review these text fields only. Title: " + input.title.slice(0, 200) +
+      ". Camera name: " + input.camera.slice(0, 120) +
+      ". Lens name: " + (input.lens || "not provided").slice(0, 120) +
+      ". No image or video is included or should be inspected."
+    }
+  ]);
 }
 
 export const GROQ_MODEL = MODEL;
-
-// Optional, short market check. Runs only when a member supplied a price.
-export async function searchGearPrice(input: {
-  camera: string; lens: string | null; price: number; currency: string | null; condition: string | null;
-}) {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("GROQ_API_KEY is not configured.");
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "openai/gpt-oss-20b",
-      messages: [{
-        role: "user",
-        content: `Do a very short web search to sanity-check this user-submitted camera gear price. Camera: ${input.camera}. Lens: ${input.lens || "not specified"}. Claimed price: ${input.price} ${input.currency || ""}. Condition: ${input.condition || "unknown"}. Search only for this exact gear and currency. Use at most 3 useful sources, prefer manufacturers and reputable retailers/marketplaces, distinguish new from used, and report a rough observed range rather than a precise valuation. Output at most 4 short lines: estimated range, whether the claimed price looks unusual, and source names/URLs. If sources are weak or currencies differ, say unable to verify. This is a moderation hint, not a final verdict.`
-      }],
-      temperature: 0,
-      max_completion_tokens: 420,
-      reasoning_effort: "low",
-      tool_choice: "required",
-      tools: [{ type: "browser_search" }]
-    }),
-    cache: "no-store"
-  });
-  if (!response.ok) throw new Error(`Groq gear search unavailable (${response.status}).`);
-  const payload = await response.json();
-  const result = payload.choices?.[0]?.message?.content;
-  if (typeof result !== "string" || !result.trim()) throw new Error("No gear-search result.");
-  return result.trim().slice(0, 1800);
-}

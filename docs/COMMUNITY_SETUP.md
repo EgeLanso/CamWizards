@@ -1,50 +1,48 @@
 # CamWizards community features — setup
 
-## Deploy order
+## Supabase setup order
 
-1. Merge PR #3 (the visual redesign) first.
-2. In Supabase SQL Editor, run the complete file:
-   `supabase/migrations/20261126_community_admin_xp_moderation.sql`
-3. Then run the incremental suspension-guard migration:
-   `supabase/migrations/20261127_ban_interactions_guard.sql`
-4. Run the private-chat migration:
-   `supabase/migrations/20261127_private_chats.sql`
-5. In Vercel → Project → Settings → Environment Variables, add these as **Secret** values for Production (and Preview if you use it):
-   - `SUPABASE_SERVICE_ROLE_KEY` — Supabase project service-role key. Server only; never prefix with `NEXT_PUBLIC_`.
-   - `GROQ_API_KEY` — API key from GroqCloud. Server only.
-6. Keep the existing `OWNER_EMAIL` environment variable set to the owner's sign-in email.
-7. Merge this feature PR and redeploy.
+Run each migration once in Supabase → SQL Editor, in this order:
 
-Do not paste either secret into GitHub, source files, browser code, or chat. If a secret has ever been exposed publicly, rotate it.
+1. \`supabase/migrations/20261126_community_admin_xp_moderation.sql\`
+2. \`supabase/migrations/20261127_ban_interactions_guard.sql\`
+3. \`supabase/migrations/20261127_private_chats.sql\`
+4. \`supabase/migrations/20261127_profile_avatars_mixed_media.sql\`
+
+In Vercel → Project → Settings → Environment Variables, keep these server-side values configured for Production (and Preview when used):
+
+- \`SUPABASE_SERVICE_ROLE_KEY\` — never prefix with \`NEXT_PUBLIC_\`.
+- \`GROQ_API_KEY\` — used for public Lounge moderation and text-only post-name review.
+- \`OWNER_EMAIL\` — owner sign-in email used for owner permissions.
+
+Never paste secret keys into GitHub, browser code, source files or chat. Rotate any secret that has been exposed.
 
 ## Features
 
-- Roles: owner (matched by `OWNER_EMAIL`), admin, moderator, member.
-- Only the owner can grant/remove admin and moderator roles.
-- Admins can suspend members, grant XP and manage moderation. Moderators can review posts, reports and chat but cannot grant roles, XP or suspend accounts.
-- Account suspensions can be temporary or permanent. The owner can lift them from the admin panel.
-- XP: +10 for an approved photo post, +1 for an approved lounge message, capped at 10 chat XP per day. XP changes are recorded and cannot be edited through a normal profile update.
-- Lounge: messages are checked before appearing. Ordinary profanity is allowed. High-confidence hate slurs, targeted harassment or credible threats are removed and can trigger a 24-hour automatic suspension.
-- Posts: new uploads start as pending. Photos with up to three images are checked by Groq Vision. Videos and galleries with more than three images go to manual review.
-- Exact SHA-256 file matches are flagged for moderator review. This detects byte-identical re-uploads, not edited copies and not copyright ownership.
-- If a price is supplied, a short Groq browser-search check is stored for moderators. It is only a hint, not a definitive valuation.
-- Members can report public posts; reports appear in the admin panel.
+- Roles: owner (matched by \`OWNER_EMAIL\`), admin, moderator and member. Only the owner can grant or remove staff roles.
+- Admins can suspend members, grant XP, review reports and moderate posts/chat. Moderators can review content and reports but cannot grant roles, XP or suspend accounts.
+- Admins and the owner can clear the public Lounge from the admin panel. This marks public messages removed and records the action; private rooms are unaffected.
+- XP: +10 for an approved post and +1 for an approved Lounge message, capped at 10 Lounge XP per user per day. XP changes are recorded and cannot be edited through a normal profile update.
+- Public Lounge messages continue to be checked by Groq before appearing. Ordinary profanity is allowed; high-confidence hate slurs, targeted harassment or credible threats can be removed and may trigger a 24-hour suspension.
+- Uploads can contain up to 10 photos and one video in a single post. Each file goes to its matching Supabase Storage bucket. Upload is attempted in parallel; if any file fails, successful uploads are cleaned up and retried sequentially with photos first, then video.
+- Video files in a mixed gallery expire after 10 days; photos in that same post remain available. Video-only posts retain the existing 10-day renewal behavior.
+- Groq post review receives only the post title, camera name and lens name. It does not receive photos, videos, thumbnails, image URLs or file data. No visual scan, image hashing or price search is performed.
+- Members can report public posts and profiles. Reports appear in the admin panel.
+- Members can set a profile photo with an image URL or upload a JPG, PNG, WebP or AVIF image (up to 5 MB) from their device. Uploaded avatars are stored in the dedicated \`avatars\` bucket.
+
+## Private rooms
+
+- A signed-in member can create a room with a name and a required password (6–64 characters).
+- The creator receives a room code. Sharing the room code and password allows another signed-in account to join; usernames and invitation lists are not required.
+- Passwords are stored as salted scrypt hashes, never as readable text. Successful password verification creates a short-lived, HTTP-only, signed access cookie (6 hours).
+- Every private-room request checks the signed-in account, room membership and (for locked rooms) the signed access cookie. Room tables have RLS enabled and no direct anon/authenticated table policies; API routes use the server-only service role after validation.
+- Private-room messages are separate from the public Lounge. They are limited to 1,000 characters and 10 messages per minute per user per room.
+- This is password-gated access, not end-to-end encryption. The server processes messages to store and deliver them.
 
 ## Important limitations
 
-- AI moderation can make mistakes. The admin panel keeps a manual review queue; do not treat automated decisions as infallible.
-- Visual analysis cannot prove that a photograph came from the claimed camera. EXIF can also be missing or altered. The originality indicator is only a signal.
-- The current public Supabase Storage buckets remain public. Pending posts are hidden from CamWizards pages by database policy, but anyone who obtains a direct public storage URL may still access that object. A full private-bucket/signed-URL migration is a separate security change.
-- IP addresses are not collected or stored by this feature. It uses account-level bans. Network-level blocks should be handled separately through the hosting provider's security controls, with privacy and false-positive considerations.
-- If Groq is unavailable or its free quota is exhausted, content stays pending for human review. Free quotas can change; check the Groq Console for your account's current limits.
-- The gear price check uses Groq's browser-search tool only when a price is supplied. It is intentionally short and may return "unable to verify" if sources are weak.
-
-
-## Private chats
-
-- Members can create private rooms and invite 1–20 registered users by exact username. The creator is added automatically.
-- A room password is optional. Passwords are stored as salted scrypt hashes; a successful unlock creates a short-lived, HTTP-only, signed cookie (6 hours).
-- Every private-room API request checks both account membership and the signed unlock ticket. The room tables have RLS enabled and no direct anon/authenticated table policies; access is mediated by server-side routes.
-- Private rooms use separate tables and do not appear in the public Lounge. Messages are limited to 1,000 characters and 10 per minute per user per room.
-- Admins can clear the public Lounge from the admin panel. This hides public messages by marking them removed and records the action; private rooms are not affected.
-- Run `supabase/migrations/20261127_private_chats.sql` once in Supabase SQL Editor before using private rooms.
+- AI moderation can make mistakes. The public Lounge keeps a manual review path; moderation decisions should not be treated as infallible.
+- Groq post-name review can also be wrong or unavailable. When it cannot finish, the post stays in the moderation queue.
+- Supabase \`photos\` and \`videos\` buckets remain public. A direct public storage URL can still be opened by anyone who has it, even when a post is not shown in CamWizards pages. A private-bucket/signed-URL migration is a separate security change.
+- Profile avatars are public images. Do not upload private or sensitive images.
+- IP addresses are not collected or stored by this feature. Suspensions are account-level.

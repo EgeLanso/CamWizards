@@ -1,13 +1,24 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { uiText } from "@/lib/i18n";
+import type { Locale } from "@/lib/ranks";
 
 type Message = { id:string; user_id:string; body:string; status:string; created_at:string; username:string };
-export default function Lounge({ initialMessages, currentUserId }:{initialMessages:Message[];currentUserId:string}) {
+export default function Lounge({
+  initialMessages,
+  currentUserId,
+  locale = "en"
+}: {
+  initialMessages: Message[];
+  currentUserId: string;
+  locale?: Locale;
+}) {
   const [messages,setMessages]=useState(initialMessages);
   const [body,setBody]=useState("");
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState("");
+  const t = (key: Parameters<typeof uiText>[1]) => uiText(locale, key);
 
   useEffect(()=>{
     const supabase=createClient();
@@ -55,8 +66,8 @@ export default function Lounge({ initialMessages, currentUserId }:{initialMessag
       {!messages.length&&<div className="empty">Be the first to start a photography conversation.</div>}
     </div>
     <form onSubmit={send} style={{display:"flex",gap:8,marginTop:14}}>
-      <input className="input" value={body} onChange={event=>setBody(event.target.value)} maxLength={1000} placeholder="Talk cameras, lenses and photography..." aria-label="Chat message" disabled={busy}/>
-      <button className="btn primary" disabled={busy||!body.trim()}>{busy?"Sending...":"Send"}</button>
+      <input className="input" value={body} onChange={event=>setBody(event.target.value)} maxLength={1000} placeholder={t("privateMessage")} aria-label="Chat message" disabled={busy}/>
+      <button className="btn primary" disabled={busy||!body.trim()}>{busy?t("sending"):t("send")}</button>
     </form>
     {notice&&<p className="muted" aria-live="polite" style={{fontSize:12}}>{notice}</p>}
     <p className="muted" style={{fontSize:11}}>Normal swearing is allowed. Hate speech, targeted harassment and threats are not. Messages are checked before appearing.</p>
