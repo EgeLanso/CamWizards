@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import PhotoGallery from "@/components/PhotoGallery";
+import ReportButton from "@/components/ReportButton";
 
 export default async function MediaPage({params}:{params:Promise<{id:string}>}) {
   const {id}=await params;
@@ -48,6 +49,7 @@ export default async function MediaPage({params}:{params:Promise<{id:string}>}) 
       {item.expires_at&&<p className="notice">{expired?"This video has expired and is only visible to you. Renew it to publish it again.":`Video expires ${new Date(item.expires_at).toLocaleString()}`}</p>}
       {owner&&item.media_type==="video"&&<form action={`/api/uploads/${item.id}/renew`} method="post"><button className="btn primary">Renew for 10 days</button></form>}
       {owner&&<form action={`/api/uploads/${item.id}/delete`} method="post" style={{marginTop:10}}><button className="btn danger">Delete upload</button></form>}
+      {!owner&&user&&<ReportButton uploadId={item.id}/>}
     </div>
   </div></div></section>;
 }

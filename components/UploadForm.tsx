@@ -152,7 +152,21 @@ export function UploadForm() {
       return;
     }
 
-    setMessage("Upload published successfully.");
+    setProgress("Checking the post with CamWizards AI...");
+    let moderationMessage = "Your post was saved and is waiting for a moderator.";
+    try {
+      const response = await fetch("/api/moderation/review-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadId: created.id })
+      });
+      const result = await response.json();
+      moderationMessage = result.message || moderationMessage;
+    } catch {
+      moderationMessage = "Upload saved. Automatic review could not connect, so it remains private in the moderation queue.";
+    }
+
+    setMessage(moderationMessage);
     setProgress("");
     formElement.reset();
     setFiles([]);
@@ -183,7 +197,7 @@ export function UploadForm() {
       <div className="full"><label className="label">Description</label><textarea name="description" rows={4} placeholder="Tell people how the setup performed..." disabled={busy} /></div>
       <div className="full"><label className="label">Categories</label><div className="check-grid">{CATEGORIES.map(category=><label className="check" key={category}><input type="checkbox" checked={categories.includes(category)} disabled={busy} onChange={()=>toggleCategory(category)} />{category}</label>)}</div></div>
       <div className="full"><div className="notice">Videos automatically expire after 10 days. You can renew them from your profile before they expire.</div></div>
-      <div className="full"><button className="btn primary" disabled={busy}>{busy ? "Publishing..." : "Publish to CamWizards"}</button>{progress && <p className="muted" aria-live="polite">{progress}</p>}{message && <p className={message.includes("success") ? "success" : "error"} aria-live="polite">{message}</p>}</div>
+      <div className="full"><button className="btn primary" disabled={busy}>{busy ? "Publishing..." : "Publish to CamWizards"}</button>{progress && <p className="muted" aria-live="polite">{progress}</p>}{message && <p className={message.toLowerCase().includes("approved") || message.toLowerCase().includes("published") ? "success" : message.toLowerCase().includes("waiting") || message.toLowerCase().includes("review") ? "notice" : "error"} aria-live="polite">{message}</p>}</div>
     </form>
   );
 }
