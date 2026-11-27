@@ -54,7 +54,10 @@ export async function POST(request: Request) {
   }
 
   await admin.from("chat_messages").update({ status: "removed" }).eq("id", row.id);
-  if (result.decision === "ban" && result.confidence >= 0.9) {
+  const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
+  const isOwner = Boolean(ownerEmail && user.email?.trim().toLowerCase() === ownerEmail);
+  const autoSuspended = result.decision === "ban" && result.confidence >= 0.9 && !isOwner;
+  if (autoSuspended) {
     await admin.from("user_bans").insert({
       user_id: user.id, reason: `Automatic 24-hour suspension: ${result.reason}`,
       expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
@@ -66,8 +69,10 @@ export async function POST(request: Request) {
   });
   return NextResponse.json({
     status: "removed",
-    message: result.decision === "ban" && result.confidence >= 0.9
+    message: autoSuspended
       ? "A serious community-rule violation was detected. Your account is temporarily suspended for 24 hours."
-      : "Message was not published because it violated the community rules."
+      : isOwner && result.decision === "ban" && result.confidence >= 0.9
+        ? "Message removed and logged. The owner account is not automatically suspended."
+        : "Message was not published because it violated the community rules."
   });
 }
