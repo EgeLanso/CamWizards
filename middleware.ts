@@ -17,18 +17,29 @@ export async function middleware(request: NextRequest) {
       }
     }
   );
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims;
-  if (!claims?.sub) {
+
+  // Use the Auth server's verified user record. Treat transient auth failures as
+  // unauthenticated for middleware purposes; protected pages and API routes enforce access too.
+  let userId: string | null = null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    userId = user?.id ?? null;
+  } catch {
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   }
+
+  if (!userId) {
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  }
+
   const protectedPath = ["/upload", "/lounge", "/admin", "/profile"].some(path =>
     request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + "/")
   );
   if (protectedPath) {
     const { data: ban } = await supabase.from("user_bans").select("id")
-      .eq("user_id", claims.sub).is("revoked_at", null)
+      .eq("user_id", userId).is("revoked_at", null)
       .or("expires_at.is.null,expires_at.gt." + new Date().toISOString())
       .limit(1).maybeSingle();
     if (ban) return NextResponse.redirect(new URL("/suspended", request.url));
