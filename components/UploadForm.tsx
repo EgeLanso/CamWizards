@@ -145,6 +145,13 @@ export function UploadForm({ locale = "en" }: { locale?: Locale }) {
     const price = form.get("price") ? Number(form.get("price")) : null;
     const hasPhotos = photoJobs.length > 0;
     const cover = hasPhotos ? photoJobs[0] : videoJobs[0];
+    if (!cover) {
+      await rollback();
+      setMessage(t("uploadFailed"));
+      setBusy(false);
+      setProgress("");
+      return;
+    }
     const postMediaType = hasPhotos ? "photo" : "video";
     const postExpiry = !hasPhotos && videoFiles.length ? videoExpiry : null;
 
