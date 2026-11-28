@@ -11,7 +11,7 @@ export default async function AdminPage() {
   if (!staff.admin) return <section className="section"><div className="container"><div className="empty">Admin tools need the server-only SUPABASE_SERVICE_ROLE_KEY environment variable.</div></div></section>;
 
   const db = staff.admin;
-  const [profilesResult, rolesResult, bansResult, uploadsResult, reportsResult, chatResult, logsResult, usersResult, ownerProfileResult] = await Promise.all([
+  const [profilesResult, rolesResult, bansResult, uploadsResult, reportsResult, chatResult, logsResult, usersResult, ownerProfileResult, badgesResult, profileReportsResult] = await Promise.all([
     db.from("profiles").select("id,username,display_name,avatar_url,xp,created_at").order("created_at", { ascending: false }).limit(100),
     db.from("user_roles").select("user_id,role"),
     db.from("user_bans").select("id,user_id,reason,expires_at,created_at").is("revoked_at", null).order("created_at", { ascending: false }).limit(100),
@@ -20,7 +20,9 @@ export default async function AdminPage() {
     db.from("chat_messages").select("id,user_id,body,status,created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(50),
     db.from("moderation_logs").select("id,user_id,content_type,content_id,decision,reason,model,created_at").order("created_at", { ascending: false }).limit(50),
     db.auth.admin.listUsers({ page: 1, perPage: 100 }),
-    db.from("profiles").select("id,username,display_name,avatar_url,xp,created_at").eq("id", staff.user.id).maybeSingle()
+    db.from("profiles").select("id,username,display_name,avatar_url,xp,created_at").eq("id", staff.user.id).maybeSingle(),
+    db.from("user_badges").select("id,badge_text,badge_color,badge_emoji,user_id,created_by_admin_id,created_at").order("created_at", { ascending: false }).limit(100),
+    db.from("profile_reports").select("id,reporter_id,reported_user_id,reason,status,created_at,reviewed_by,reviewed_at").order("created_at", { ascending: false }).limit(50)
   ]);
 
   const roles = new Map((rolesResult.data || []).map(row => [row.user_id, row.role]));
@@ -44,6 +46,10 @@ export default async function AdminPage() {
     publicUrl: db.storage.from(row.media_type === "video" ? "videos" : "photos").getPublicUrl(row.storage_path).data.publicUrl
   }));
   const chat = (chatResult.data || []).map(row => ({ ...row, username: profileNames.get(row.user_id) || "Member" }));
+  const badges = (badgesResult.data || []).map(b => ({
+    ...b,
+    user_id: profiles.find(p => p.id === b.user_id)?.id || null
+  }));
 
   return <AdminPanel
     role={staff.role!}
@@ -53,5 +59,7 @@ export default async function AdminPage() {
     reports={reportsResult.data || []}
     logs={logsResult.data || []}
     profileNames={Object.fromEntries(profileNames)}
+    badges={badges}
+    profileReports={profileReportsResult.data || []}
   />;
 }
