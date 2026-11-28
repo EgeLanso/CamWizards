@@ -10,7 +10,14 @@ const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avi
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-async function uploadFile(admin: any, bucket: string, path: string, file: File): Promise<{ error: string | null }> {
+interface UploadFile {
+  arrayBuffer(): Promise<ArrayBuffer>;
+  name: string;
+  size: number;
+  type: string;
+}
+
+async function uploadFile(admin: any, bucket: string, path: string, file: UploadFile): Promise<{ error: string | null }> {
   const arrayBuffer = await file.arrayBuffer();
   const { error } = await admin.storage.from(bucket).upload(path, arrayBuffer, {
     contentType: file.type,
@@ -38,11 +45,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Title is required (max 200 chars)." }, { status: 400 });
   }
 
-  const photoFiles: File[] = [];
-  const videoFiles: File[] = [];
+  const photoFiles: UploadFile[] = [];
+  const videoFiles: UploadFile[] = [];
   for (const [key, value] of formData.entries()) {
-    if (key === "photos" && value instanceof File) photoFiles.push(value);
-    if (key === "videos" && value instanceof File) videoFiles.push(value);
+    if (key === "photos" && value && typeof (value as any).arrayBuffer === "function") photoFiles.push(value as any);
+    if (key === "videos" && value && typeof (value as any).arrayBuffer === "function") videoFiles.push(value as any);
   }
 
   if (photoFiles.length === 0 && videoFiles.length === 0) {
@@ -55,7 +62,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Maximum ${MAX_VIDEOS} video allowed.` }, { status: 400 });
   }
 
-  const allFiles = [...photoFiles.map(f => ({ file: f, type: "photo" })), ...videoFiles.map(f => ({ file: f, type: "video" }))];
+  const allFiles = [...photoFiles.map(f => ({ file: f, type: "photo" as const })), ...videoFiles.map(f => ({ file: f, type: "video" as const }))];
   for (const { file } of allFiles) {
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json({ error: `File ${file.name} is too large (max 50MB).` }, { status: 400 });
