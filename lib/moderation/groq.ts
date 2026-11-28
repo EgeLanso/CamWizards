@@ -42,30 +42,28 @@ async function callGroq(messages: unknown[]): Promise<ReviewResult> {
 }
 
 const CHAT_POLICY = `You are the moderation classifier for CamWizards, a photography community.
-Allow ordinary profanity and casual swearing. Do NOT punish a post merely for words like fuck, shit, damn or similar ordinary swearing.
+NO profanity, swearing, or offensive language is allowed in ANY language (Turkish, English, Russian, German, Spanish, French, etc.).
+Reject any message containing profanity, obscenity, insults, or offensive slang.
+Reject attempts to hide profanity by separating letters, using numbers, dots, or similar character tricks.
 Reject sexual content, nudity, graphic violence, self-harm promotion, threats, doxxing, spam, hateful symbols, and discriminatory abuse.
 Racial slurs including the N-word used as abuse are severe hate speech. Targeted harassment, sexual harassment, or credible threats are severe.
 Distinguish abuse from neutral educational or reporting context; if context is unclear choose hold, not ban.
-For chat: decision=ban only for high-confidence severe hate slurs, targeted harassment or credible threats. decision=reject for other disallowed content. decision=hold if uncertain.
+For chat: decision=ban only for high-confidence severe hate slurs, targeted harassment or credible threats. decision=reject for other disallowed content including profanity. decision=hold if uncertain.
 For photos: reject disallowed harmful imagery; hold uncertain cases. Never infer that a photo is authentic from appearance alone.
 Return ONLY JSON: {"decision":"approve|hold|reject|ban","categories":["..."],"reason":"short reason","confidence":0.0,"originality":"likely_original|possible_edit|uncertain"}.`;
 
-export async function moderateChat(body: string) {
-  return callGroq([{ role: "system", content: CHAT_POLICY }, { role: "user", content: `Classify this chat message. Remember: normal swearing is allowed. Message: ${body.slice(0, 1000)}` }]);
+export async function moderateChat(body: string, language: string = "tr") {
+  return callGroq([{ role: "system", content: CHAT_POLICY }, { role: "user", content: `Classify this chat message. Language hint: ${language}. Message: ${body.slice(0, 1000)}` }]);
 }
 
 export async function moderateUpload(input: {
   title: string; description: string; camera: string; lens: string | null;
   price: number | null; currency: string | null; imageUrls: string[];
 }) {
-  if (input.imageUrls.length > 3) {
-    return { decision: "hold", categories: ["partial_image_scan"], reason: "This post has more than three photos; manual review is required so no unscanned images slip through.", confidence: 1, originality: "uncertain" } as ReviewResult;
-  }
   const content: Array<Record<string, unknown>> = [{
     type: "text",
-    text: `Review this photography post for safety and obvious metadata inconsistencies. Title: ${input.title}. Description: ${input.description}. Camera claimed: ${input.camera}. Lens claimed: ${input.lens || "not provided"}. Price: ${input.price ?? "not provided"} ${input.currency || ""}. Check only for obvious mismatches or unsafe imagery. You cannot verify camera provenance or current market price from pixels. If unsure, hold. Ordinary profanity in the text is allowed. Return the required JSON. For originality, only flag obvious screenshot/collage/strong synthetic-art indicators; otherwise use uncertain or likely_original, but never claim proof.`
+    text: `Review this photography post title and metadata for safety and policy violations. Title: ${input.title}. Camera claimed: ${input.camera}. Lens claimed: ${input.lens || "not provided"}. Price: ${input.price ?? "not provided"} ${input.currency || ""}. NO profanity or offensive language is allowed in any language. Reject attempts to hide profanity by separating letters or using symbols. Check only for obvious policy violations in text. Return the required JSON. For originality, use likely_original unless obvious synthetic indicators; otherwise use uncertain.`
   }];
-  for (const url of input.imageUrls) content.push({ type: "image_url", image_url: { url } });
   return callGroq([{ role: "system", content: CHAT_POLICY }, { role: "user", content }]);
 }
 
