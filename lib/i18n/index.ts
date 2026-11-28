@@ -6,18 +6,18 @@ export const SUPPORTED_LANGUAGES: Language[] = ["en", "tr", "ru", "de", "es", "f
 
 export const DEFAULT_LANGUAGE: Language = "en";
 
-export function getLanguageFromCookie(): Language {
+export async function getLanguageFromCookie(): Promise<Language> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const lang = cookieStore.get("cw_lang")?.value;
     if (lang && SUPPORTED_LANGUAGES.includes(lang as Language)) return lang as Language;
   } catch {}
   return DEFAULT_LANGUAGE;
 }
 
-export function setLanguageCookie(lang: Language): void {
+export async function setLanguageCookie(lang: Language): Promise<void> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.set("cw_lang", lang, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
   } catch {}
 }
