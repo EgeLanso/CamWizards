@@ -4,7 +4,7 @@ import { useState } from "react";
 type Member = { id:string; username:string; display_name:string|null; email:string; xp:number; role:string; banned:boolean; created_at:string; badge_text?:string|null; badge_color?:string|null; badge_emoji?:string|null };
 type Upload = { id:string; user_id:string; username:string; title:string; media_type:string; publicUrl:string; camera_name:string; lens_name:string|null; moderation_status:string; moderation_note:string|null; gear_check_note:string|null };
 type Chat = { id:string; user_id:string; username:string; body:string; status:string; created_at:string };
-type Report = { id:string; reporter_id:string; target_user_id:string|null; upload_id:string|null; chat_message_id:string|null; reason:string; status:string };
+type Report = { id:string; reporter_id:string; target_user_id:string|null; reported_user_id?:string|null; upload_id:string|null; chat_message_id:string|null; reason:string; status:string };
 type Log = {id:string;user_id:string|null;content_type:string;content_id:string|null;decision:string;reason:string|null;model:string|null;created_at:string};
 type Badge = { id:string; badge_text:string; badge_color:string; badge_emoji:string; user_id?:string|null; created_by_admin_id?:string|null; created_at:string };
 type ProfileReport = { id:string; reporter_id:string; reported_user_id:string; reason:string; status:string; created_at:string; reviewed_by?:string|null; reviewed_at?:string|null };
