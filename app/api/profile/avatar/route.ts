@@ -7,6 +7,13 @@ export const runtime = "nodejs";
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
+interface UploadFile {
+  arrayBuffer(): Promise<ArrayBuffer>;
+  name: string;
+  size: number;
+  type: string;
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -14,7 +21,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const formData = await request.formData();
-  const file = formData.get("avatar") as File | null;
+  const file = formData.get("avatar") as unknown as UploadFile | null;
   if (!file) return NextResponse.json({ error: "No avatar file provided." }, { status: 400 });
   if (!ALLOWED_TYPES.includes(file.type)) {
     return NextResponse.json({ error: `Invalid file type: ${file.type}. Use JPG, PNG, WebP or AVIF.` }, { status: 400 });
