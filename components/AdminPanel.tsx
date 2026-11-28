@@ -217,7 +217,7 @@ export default function AdminPanel({role,members,uploads,chat,reports,logs,profi
 
     <div className="section-head" style={{marginTop:42}}><div><h2>Reports</h2><p className="muted">Community reports submitted by members.</p></div></div>
     <div className="grid" style={{gap:10}}>{[...reports,...profileReports.filter(r=>r.status==="pending")].map(report=>
-      <ReportItem report={report} profileNames={profileNames} busy={busy} act={act} isProfile={!report.upload_id && !report.chat_message_id} />
+      <ReportItem report={report} profileNames={profileNames} busy={busy} act={act} isProfile={!("upload_id" in report) && !("chat_message_id" in report)} />
     )}</div>
     {reports.length===0&&profileReports.filter(r=>r.status==="pending").length===0&&<div className="empty">No open reports.</div>}
 
