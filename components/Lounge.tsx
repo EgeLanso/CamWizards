@@ -59,6 +59,6 @@ export default function Lounge({ initialMessages, currentUserId }:{initialMessag
       <button className="btn primary" disabled={busy||!body.trim()}>{busy?"Sending...":"Send"}</button>
     </form>
     {notice&&<p className="muted" aria-live="polite" style={{fontSize:12}}>{notice}</p>}
-    <p className="muted" style={{fontSize:11}}>Normal swearing is allowed. Hate speech, targeted harassment and threats are not. Messages are checked before appearing.</p>
+    <p className="muted" style={{fontSize:11}}>No profanity or offensive language in any language. Hate speech, targeted harassment and threats are not allowed. Messages are checked before appearing.</p>
   </div>;
 }
