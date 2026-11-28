@@ -72,8 +72,9 @@ function ChatItem({message, mod, busy, approveChat, removeChat}:{message:Chat;mo
 
 function ReportItem({report, profileNames, busy, act, isProfile}:{report:AnyReport;profileNames:Record<string,string>;busy:string;act:(payload:Record<string,unknown>,key:string)=>Promise<void>;isProfile:boolean}) {
   const reporterName = profileNames[report.reporter_id] || report.reporter_id;
-  const targetId = isProfile ? report.reported_user_id : report.target_user_id;
-  const targetName = targetId ? profileNames[targetId] || targetId : report.upload_id || report.chat_message_id;
+  const r = report as Report;
+  const targetId = isProfile ? report.reported_user_id : r.target_user_id;
+  const targetName = targetId ? profileNames[targetId] || targetId : r.upload_id || r.chat_message_id;
   const reviewAction = isProfile ? "profile-report-review" : "report-status";
   return (
     <div className="panel" key={report.id}>
