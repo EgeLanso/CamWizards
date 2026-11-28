@@ -7,8 +7,16 @@ import {
   hashPrivateChatPassword,
   privateChatCookieName,
   privateChatCookieOptions,
-  verifyPrivateChatTicket
+  verifyPrivateChatTicket,
+  verifyPrivateChatPassword
 } from "@/lib/community/private-chat";
+
+function generateInviteCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
 
 export const runtime = "nodejs";
 
@@ -28,7 +36,7 @@ export async function GET(request: NextRequest) {
   if (!roomIds.length) return NextResponse.json({ rooms: [] });
 
   const [{ data: rooms, error: roomsError }, { data: memberRows, error: membersError }] = await Promise.all([
-    admin.from("private_chats").select("id,name,owner_id,password_hash,created_at")
+    admin.from("private_chats").select("id,name,invite_code,owner_id,password_hash,created_at")
       .in("id", roomIds).order("created_at", { ascending: false }),
     admin.from("private_chat_members").select("chat_id,user_id").in("chat_id", roomIds)
   ]);
@@ -53,6 +61,7 @@ export async function GET(request: NextRequest) {
     return {
       id: room.id,
       name: room.name,
+      invite_code: room.invite_code,
       owner_id: room.owner_id,
       created_at: room.created_at,
       locked,
@@ -73,7 +82,7 @@ export async function POST(request: Request) {
   const ban = await getActiveBan(user.id);
   if (ban) return NextResponse.json({ error: "Your account is suspended." }, { status: 403 });
 
-  let input: { name?: unknown; usernames?: unknown; password?: unknown };
+  let input: { name?: unknown; password?: unknown };
   try { input = await request.json(); }
   catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
 
@@ -82,61 +91,73 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Room name must be 1–60 characters." }, { status: 400 });
   }
 
-  const usernames = Array.isArray(input.usernames)
-    ? Array.from(new Set(input.usernames.map(value => String(value).trim().replace(/^@/, "")).filter(Boolean)))
-    : [];
-  if (!usernames.length || usernames.length > 20) {
-    return NextResponse.json({ error: "Add 1–20 friends by their exact usernames." }, { status: 400 });
-  }
-
   const password = String(input.password || "");
-  if (password && (password.length < 6 || password.length > 64)) {
-    return NextResponse.json({ error: "Room password must be 6–64 characters." }, { status: 400 });
+  if (!password || password.length < 6 || password.length > 64) {
+    return NextResponse.json({ error: "Room password is required and must be 6–64 characters." }, { status: 400 });
   }
 
   const admin = createAdminClient();
-  const { data: profiles, error: profilesError } = await admin
-    .from("profiles").select("id,username").in("username", usernames);
-  if (profilesError) return NextResponse.json({ error: "Could not look up usernames." }, { status: 500 });
-
-  const found = profiles || [];
-  const foundNames = new Set(found.map(profile => profile.username));
-  const missing = usernames.filter(username => !foundNames.has(username));
-  if (missing.length) {
-    return NextResponse.json({ error: "Username not found: " + missing.join(", ") }, { status: 404 });
+  let inviteCode = generateInviteCode();
+  let attempts = 0;
+  while (attempts < 5) {
+    const { data: existing } = await admin.from("private_chats").select("id").eq("invite_code", inviteCode).maybeSingle();
+    if (!existing) break;
+    inviteCode = generateInviteCode();
+    attempts++;
+  }
+  if (attempts >= 5) {
+    return NextResponse.json({ error: "Could not generate a unique room code. Try again." }, { status: 500 });
   }
 
-  const passwordHash = password ? await hashPrivateChatPassword(password) : null;
+  const passwordHash = await hashPrivateChatPassword(password);
   const { data: room, error: roomError } = await admin.from("private_chats")
-    .insert({ name, owner_id: user.id, password_hash: passwordHash })
-    .select("id,name,owner_id,created_at")
+    .insert({ name, owner_id: user.id, password_hash: passwordHash, invite_code: inviteCode })
+    .select("id,name,invite_code,owner_id,created_at")
     .single();
   if (roomError || !room) return NextResponse.json({ error: "Could not create the room." }, { status: 500 });
 
-  const participantIds = Array.from(new Set([user.id, ...found.map(profile => profile.id)]));
   const { error: membersError } = await admin.from("private_chat_members").insert(
-    participantIds.map(userId => ({ chat_id: room.id, user_id: userId, added_by: user.id }))
+    { chat_id: room.id, user_id: user.id, added_by: user.id }
   );
   if (membersError) {
     await admin.from("private_chats").delete().eq("id", room.id);
-    return NextResponse.json({ error: "Could not add the selected members." }, { status: 500 });
+    return NextResponse.json({ error: "Could not add you to the room." }, { status: 500 });
   }
 
   const response = NextResponse.json({
     room: {
       ...room,
-      locked: Boolean(passwordHash),
+      locked: true,
       unlocked: true,
-      participants: ["You", ...found.filter(profile => profile.id !== user.id).map(profile => profile.username)]
-    }
+      participants: ["You"]
+    },
+    invite_link: `${process.env.NEXT_PUBLIC_SITE_URL || "https://cam-wizards.vercel.app"}/private-chat/${room.id}?code=${inviteCode}`
   }, { status: 201 });
 
-  if (passwordHash) {
-    response.cookies.set(
-      privateChatCookieName(room.id),
-      createPrivateChatTicket(room.id, user.id),
-      privateChatCookieOptions(room.id)
-    );
-  }
+  response.cookies.set(
+    privateChatCookieName(room.id),
+    createPrivateChatTicket(room.id, user.id),
+    privateChatCookieOptions(room.id)
+  );
   return response;
+}
+
+export async function DELETE(request: Request) {
+  const session = await createClient();
+  const { data: { user } } = await session.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+
+  let input: { chat_id?: unknown };
+  try { input = await request.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
+  const chatId = String(input.chat_id || "");
+  if (!chatId) return NextResponse.json({ error: "Missing chat_id." }, { status: 400 });
+
+  const admin = createAdminClient();
+  const { data: room } = await admin.from("private_chats").select("owner_id").eq("id", chatId).maybeSingle();
+  if (!room) return NextResponse.json({ error: "Room not found." }, { status: 404 });
+  if (room.owner_id !== user.id) return NextResponse.json({ error: "Only the owner can delete the room." }, { status: 403 });
+
+  await admin.from("private_chat_members").delete().eq("chat_id", chatId);
+  await admin.from("private_chats").delete().eq("id", chatId);
+  return NextResponse.json({ ok: true });
 }
