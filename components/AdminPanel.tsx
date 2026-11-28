@@ -9,6 +9,8 @@ type Log = {id:string;user_id:string|null;content_type:string;content_id:string|
 type Badge = { id:string; badge_text:string; badge_color:string; badge_emoji:string; user_id?:string|null; created_by_admin_id?:string|null; created_at:string };
 type ProfileReport = { id:string; reporter_id:string; reported_user_id:string; reason:string; status:string; created_at:string; reviewed_by?:string|null; reviewed_at?:string|null };
 
+type AnyReport = Report | ProfileReport;
+
 function coverStyleFor(publicUrl: string | null) {
   if (!publicUrl) return {};
   return {
@@ -68,7 +70,7 @@ function ChatItem({message, mod, busy, approveChat, removeChat}:{message:Chat;mo
   );
 }
 
-function ReportItem({report, profileNames, busy, act, isProfile}:{report:Report;profileNames:Record<string,string>;busy:string;act:(payload:Record<string,unknown>,key:string)=>Promise<void>;isProfile:boolean}) {
+function ReportItem({report, profileNames, busy, act, isProfile}:{report:AnyReport;profileNames:Record<string,string>;busy:string;act:(payload:Record<string,unknown>,key:string)=>Promise<void>;isProfile:boolean}) {
   const reporterName = profileNames[report.reporter_id] || report.reporter_id;
   const targetId = isProfile ? report.reported_user_id : report.target_user_id;
   const targetName = targetId ? profileNames[targetId] || targetId : report.upload_id || report.chat_message_id;
