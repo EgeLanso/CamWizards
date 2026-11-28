@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
-import { normalizeLocale, rankText } from "@/lib/ranks";
+import { type Language } from "@/lib/i18n";
+import { rankText } from "@/lib/ranks";
 
 const OWNER_EMAIL = process.env.OWNER_EMAIL?.toLowerCase();
 
-export async function Nav() {
-  const locale = normalizeLocale((await cookies()).get("cw_locale")?.value);
+export async function Nav({ locale }: { locale: Language }) {
   const t = rankText(locale);
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
