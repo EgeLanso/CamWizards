@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
-import { normalizeLocale } from "@/lib/ranks";
+import { getLanguageFromCookie, type Language } from "@/lib/i18n";
 
 const siteUrl = "https://cam-wizards.vercel.app";
 export const metadata: Metadata = {
@@ -17,6 +17,8 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = normalizeLocale((await cookies()).get("cw_locale")?.value);
-  return <html lang={locale}><body><Nav /><main>{children}</main><footer className="site-footer"><div className="container footer-inner"><span>© {new Date().getFullYear()} CamWizards</span><span>Real gear. Real people. Real results.</span></div></footer></body></html>;
+  const cookieStore = await cookies();
+  const lang = cookieStore.get("cw_lang")?.value;
+  const locale: Language = (lang && ["en","tr","ru","de","es","fr"].includes(lang) ? lang : "en");
+  return <html lang={locale}><body><Nav locale={locale} /><main>{children}</main><footer className="site-footer"><div className="container footer-inner"><span>© {new Date().getFullYear()} CamWizards</span><span>Real gear. Real people. Real results.</span></div></footer></body></html>;
 }
